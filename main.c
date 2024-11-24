@@ -20,6 +20,7 @@ struct Token {
     Token* next;                // 次の入力トークン
     int val;                    // kindがTK_NUMの場合、その数値
     const char* str;            // トークン文字列
+    int len;                    // トークンの長さ
     const char* user_input;     // 分解元ユーザー入力文字列
 };
 
@@ -68,26 +69,35 @@ void error_at(const char* user_input, const char* loc, char* fmt, ...) {
 
 // 次のトークンが期待している記号のときには、トークンを1つ読み進めて
 // 真を返す。それ以外の場合には偽を返す。
-bool consume(Token** ppToken, char op) {
-    if ((*ppToken)->kind != TK_RESERVED || (*ppToken)->str[0] != op)
+bool consume(Token** ppToken, const char* op) {
+    if ((*ppToken)->kind != TK_RESERVED ||
+        strlen(op) != (*ppToken)->len ||
+        memcmp((*ppToken)->str, op, (*ppToken)->len))
+    {
         return false;
+    }
     *ppToken = (*ppToken)->next;
     return true;
 }
 
 // 次のトークンが期待している記号のときには、トークンを1つ読み進める。
 // それ以外の場合にはエラーを報告する。
-void expect(Token** ppToken, char op) {
-    if ((*ppToken)->kind != TK_RESERVED || (*ppToken)->str[0] != op)
-        error_at((*ppToken)->user_input, (*ppToken)->str, "'%c'ではありません", op);
+void expect(Token** ppToken, const char* op) {
+    if ((*ppToken)->kind != TK_RESERVED ||
+        strlen(op) != (*ppToken)->len ||
+        memcmp((*ppToken)->str, op, (*ppToken)->len))
+    {
+        error_at((*ppToken)->user_input, (*ppToken)->str, "'%s'ではありません", op);
+    }
     *ppToken = (*ppToken)->next;
 }
 
 // 次のトークンが数値の場合、トークンを1つ読み進めてその数値を返す。
 // それ以外の場合にはエラーを報告する。
 int expect_number(Token** ppToken) {
-    if ((*ppToken)->kind != TK_NUM)
+    if ((*ppToken)->kind != TK_NUM) {
         error_at((*ppToken)->user_input, (*ppToken)->str, "数ではありません");
+    }
     int val = (*ppToken)->val;
     *ppToken = (*ppToken)->next;
     return val;
@@ -98,10 +108,11 @@ bool at_eof(Token* pToken) {
 }
 
 // 新しいトークンを作成してcurに繋げる
-Token* new_token(TokenKind kind, Token* cur, const char* str, const char* user_input) {
+Token* new_token(TokenKind kind, Token* cur, const char* str, int len, const char* user_input) {
     Token* tok = calloc(1, sizeof(Token));
     tok->kind = kind;
     tok->str = str;
+    tok->len = len;
     tok->user_input = user_input;
     cur->next = tok;
     return tok;
@@ -122,20 +133,24 @@ Token* tokenize(const char* user_input) {
         }
 
         if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')') {
-            cur = new_token(TK_RESERVED, cur, p++, user_input);
+            cur = new_token(TK_RESERVED, cur, p++, 1, user_input);
             continue;
         }
 
         if (isdigit(*p)) {
-            cur = new_token(TK_NUM, cur, p, user_input);
-            cur->val = strtol(p, &p, 10);
+            const char* pEnd = p;
+            int val = strtol(p, &pEnd, 10);
+
+            cur = new_token(TK_NUM, cur, p, (int)(pEnd - p), user_input);
+            cur->val = val;
+            p = pEnd;
             continue;
         }
 
         error_at(user_input, p, "トークナイズできません");
     }
 
-    new_token(TK_EOF, cur, p, user_input);
+    new_token(TK_EOF, cur, p, 0, user_input);
     return head.next;
 }
 
@@ -158,9 +173,9 @@ Node* expr(Token** ppToken);
 
 Node* primary(Token** ppToken) {
     // 次のトークンが"("なら、"(" expr ")"のはず
-    if (consume(ppToken, '(')) {
+    if (consume(ppToken, "(")) {
         Node* node = expr(ppToken);
-        expect(ppToken, ')');
+        expect(ppToken, ")");
         return node;
     }
 
@@ -169,9 +184,9 @@ Node* primary(Token** ppToken) {
 }
 
 Node* unary(Token** ppToken) {
-    if (consume(ppToken, '+'))
+    if (consume(ppToken, "+"))
         return unary(ppToken);
-    if (consume(ppToken, '-'))
+    if (consume(ppToken, "-"))
         return new_node(ND_SUB, new_node_num(0), unary(ppToken));
     return primary(ppToken);
 }
@@ -180,9 +195,9 @@ Node* mul(Token** ppToken) {
     Node* node = unary(ppToken);
 
     for (;;) {
-        if (consume(ppToken, '*'))
+        if (consume(ppToken, "*"))
             node = new_node(ND_MUL, node, unary(ppToken));
-        else if (consume(ppToken, '/'))
+        else if (consume(ppToken, "/"))
             node = new_node(ND_DIV, node, unary(ppToken));
         else
             return node;
@@ -193,9 +208,9 @@ Node* expr(Token** ppToken) {
     Node* node = mul(ppToken);
 
     for (;;) {
-        if (consume(ppToken, '+'))
+        if (consume(ppToken, "+"))
             node = new_node(ND_ADD, node, mul(ppToken));
-        else if (consume(ppToken, '-'))
+        else if (consume(ppToken, "-"))
             node = new_node(ND_SUB, node, mul(ppToken));
         else
             return node;
