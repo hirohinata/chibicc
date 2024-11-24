@@ -79,6 +79,18 @@ Token* tokenize(const char* user_input) {
             continue;
         }
 
+        if (*p == '=' || *p == '!' || *p == '<' || *p == '>') {
+            if (*(p + 1) == '=') {
+                cur = new_token(TK_RESERVED, cur, p, 2, user_input);
+                p += 2;
+            }
+            else {
+                //TODO: 現時点では代入演算子('=')や論理NOT('!')は構文解析が対応していない
+                cur = new_token(TK_RESERVED, cur, p++, 1, user_input);
+            }
+            continue;
+        }
+
         if (isdigit(*p)) {
             const char* pEnd = p;
             int val = strtol(p, &pEnd, 10);

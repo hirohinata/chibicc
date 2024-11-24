@@ -144,5 +144,33 @@ namespace TestProject
             Assert.AreEqual(10, Compile("-10+20"));
             Assert.AreEqual(17, Compile("+-+12 - -34 - - - 5"));
         }
+
+        [TestMethod]
+        public void TestMethod8()
+        {
+            Assert.IsTrue(Compile("10 == 4 + 2 * 3") != 0);
+            Assert.IsFalse(Compile("10 == (4 + 2) * 3") != 0);
+
+            Assert.IsTrue(Compile("10 == 10") != 0);
+            Assert.IsFalse(Compile("10 != 10") != 0);
+            Assert.IsFalse(Compile("10 <  10") != 0);
+            Assert.IsTrue(Compile("10 <= 10") != 0);
+            Assert.IsFalse(Compile("10 >  10") != 0);
+            Assert.IsTrue(Compile("10 >= 10") != 0);
+
+            Assert.IsFalse(Compile("10 == 11") != 0);
+            Assert.IsTrue(Compile("10 != 11") != 0);
+            Assert.IsTrue(Compile("10 <  11") != 0);
+            Assert.IsTrue(Compile("10 <= 11") != 0);
+            Assert.IsFalse(Compile("10 >  11") != 0);
+            Assert.IsFalse(Compile("10 >= 11") != 0);
+
+            Assert.IsFalse(Compile("10 == 9") != 0);
+            Assert.IsTrue(Compile("10 != 9") != 0);
+            Assert.IsFalse(Compile("10 <  9") != 0);
+            Assert.IsFalse(Compile("10 <= 9") != 0);
+            Assert.IsTrue(Compile("10 >  9") != 0);
+            Assert.IsTrue(Compile("10 >= 9") != 0);
+        }
     }
 }

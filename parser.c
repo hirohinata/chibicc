@@ -12,6 +12,9 @@
 static Node* primary(Token** ppToken);
 static Node* unary(Token** ppToken);
 static Node* mul(Token** ppToken);
+static Node* add(Token** ppToken);
+static Node* relational(Token** ppToken);
+static Node* equality(Token** ppToken);
 static Node* expr(Token** ppToken);
 
 static Node* new_node(NodeKind kind, Node* lhs, Node* rhs) {
@@ -62,7 +65,7 @@ static Node* mul(Token** ppToken) {
     }
 }
 
-static Node* expr(Token** ppToken) {
+static Node* add(Token** ppToken) {
     Node* node = mul(ppToken);
 
     for (;;) {
@@ -73,6 +76,42 @@ static Node* expr(Token** ppToken) {
         else
             return node;
     }
+}
+
+static Node* relational(Token** ppToken) {
+    Node* node = add(ppToken);
+
+    for (;;) {
+        if (consume(ppToken, "<"))
+            node = new_node(ND_LT, node, add(ppToken));
+        else if (consume(ppToken, "<="))
+            node = new_node(ND_LE, node, add(ppToken));
+        else if (consume(ppToken, ">"))
+            node = new_node(ND_LT, add(ppToken), node);
+        else if (consume(ppToken, ">="))
+            node = new_node(ND_LE, add(ppToken), node);
+        else
+            return node;
+    }
+}
+
+static Node* equality(Token** ppToken) {
+    Node* node = relational(ppToken);
+
+    for (;;) {
+        if (consume(ppToken, "=="))
+            node = new_node(ND_EQ, node, relational(ppToken));
+        else if (consume(ppToken, "!="))
+            node = new_node(ND_NE, node, relational(ppToken));
+        else
+            return node;
+    }
+}
+
+static Node* expr(Token** ppToken) {
+    Node* node = equality(ppToken);
+
+    return node;
 }
 
 Node* parse(Token* pToken) {
