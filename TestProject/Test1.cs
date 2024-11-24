@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Diagnostics;
 
 namespace TestProject
 {
@@ -125,6 +126,10 @@ namespace TestProject
             Assert.AreEqual(9, Compile("(1 + 2) * 3"));
             Assert.AreEqual(-10, Compile("1 * 2 - 3 * 4"));
             Assert.AreEqual(1, Compile("(1 + 2) / 3"));
+
+            Assert.AreEqual(47, Compile("5+6*7"));
+            Assert.AreEqual(15, Compile("5*(9-6)"));
+            Assert.AreEqual(4, Compile("(3+5)/2"));
         }
 
         [TestMethod]
