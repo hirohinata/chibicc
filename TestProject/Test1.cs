@@ -21,7 +21,7 @@ namespace TestProject
 
         private static void CallGcc(string? asm, out string exeFileName)
         {
-            var tempPath = $"{Path.GetTempPath()}chibicc";
+            var tempPath = $"{Path.GetTempPath()}chibicc\\{Guid.NewGuid().ToString("N").Substring(0, 8)}";
             Directory.CreateDirectory(tempPath);
 
             var asmFileName = Path.Combine(tempPath, "test.s");
@@ -68,6 +68,12 @@ namespace TestProject
         {
             Assert.AreEqual(0, Compile("0"));
             Assert.AreEqual(42, Compile("42"));
+        }
+
+        [TestMethod]
+        public void TestMethod2()
+        {
+            Assert.AreEqual(21, Compile("5+20-4"));
         }
     }
 }
