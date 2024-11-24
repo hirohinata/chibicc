@@ -16,10 +16,11 @@ typedef struct Token Token;
 
 // トークン型
 struct Token {
-    TokenKind kind; // トークンの型
-    Token* next;    // 次の入力トークン
-    int val;        // kindがTK_NUMの場合、その数値
-    char* str;      // トークン文字列
+    TokenKind kind;             // トークンの型
+    Token* next;                // 次の入力トークン
+    int val;                    // kindがTK_NUMの場合、その数値
+    const char* str;            // トークン文字列
+    const char* user_input;     // 分解元ユーザー入力文字列
 };
 
 // エラーを報告するための関数
@@ -27,6 +28,20 @@ struct Token {
 void error(char* fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
+    exit(1);
+}
+
+// エラー箇所を報告する
+void error_at(const char* user_input, const char* loc, char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+
+    int pos = (int)(loc - user_input);
+    fprintf(stderr, "%s\n", user_input);
+    fprintf(stderr, "%*s", pos, " "); // pos個の空白を出力
+    fprintf(stderr, "^ ");
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
     exit(1);
@@ -45,7 +60,7 @@ bool consume(Token** ppToken, char op) {
 // それ以外の場合にはエラーを報告する。
 void expect(Token** ppToken, char op) {
     if ((*ppToken)->kind != TK_RESERVED || (*ppToken)->str[0] != op)
-        error("'%c'ではありません", op);
+        error_at((*ppToken)->user_input, (*ppToken)->str, "'%c'ではありません", op);
     *ppToken = (*ppToken)->next;
 }
 
@@ -53,7 +68,7 @@ void expect(Token** ppToken, char op) {
 // それ以外の場合にはエラーを報告する。
 int expect_number(Token** ppToken) {
     if ((*ppToken)->kind != TK_NUM)
-        error("数ではありません");
+        error_at((*ppToken)->user_input, (*ppToken)->str, "数ではありません");
     int val = (*ppToken)->val;
     *ppToken = (*ppToken)->next;
     return val;
@@ -64,20 +79,22 @@ bool at_eof(Token* pToken) {
 }
 
 // 新しいトークンを作成してcurに繋げる
-Token* new_token(TokenKind kind, Token* cur, char* str) {
+Token* new_token(TokenKind kind, Token* cur, const char* str, const char* user_input) {
     Token* tok = calloc(1, sizeof(Token));
     tok->kind = kind;
     tok->str = str;
+    tok->user_input = user_input;
     cur->next = tok;
     return tok;
 }
 
 // 入力文字列pをトークナイズしてそれを返す
-Token* tokenize(char* p) {
+Token* tokenize(const char* user_input) {
     Token head;
     head.next = NULL;
     Token* cur = &head;
 
+    const char* p = user_input;
     while (*p) {
         // 空白文字をスキップ
         if (isspace(*p)) {
@@ -86,20 +103,20 @@ Token* tokenize(char* p) {
         }
 
         if (*p == '+' || *p == '-') {
-            cur = new_token(TK_RESERVED, cur, p++);
+            cur = new_token(TK_RESERVED, cur, p++, user_input);
             continue;
         }
 
         if (isdigit(*p)) {
-            cur = new_token(TK_NUM, cur, p);
+            cur = new_token(TK_NUM, cur, p, user_input);
             cur->val = strtol(p, &p, 10);
             continue;
         }
 
-        error("トークナイズできません");
+        error_at(user_input, p, "トークナイズできません");
     }
 
-    new_token(TK_EOF, cur, p);
+    new_token(TK_EOF, cur, p, user_input);
     return head.next;
 }
 

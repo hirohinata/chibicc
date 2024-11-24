@@ -5,12 +5,12 @@ namespace TestProject
     [TestClass]
     public sealed class Test1
     {
-        private static void CallCompiler(string artuments, out string? asm)
+        private static void CallCompiler(string arguments, out string? asm)
         {
             ProcessStartInfo psInfo = new()
             {
                 FileName = "../../../../x64/Debug/chibicc.exe",
-                Arguments = $"\"{artuments}\"",
+                Arguments = $"\"{arguments}\"",
                 CreateNoWindow = true,
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
@@ -69,6 +69,23 @@ namespace TestProject
             return exitCode;
         }
 
+        private static string CompileError(string args)
+        {
+            ProcessStartInfo psInfo = new()
+            {
+                FileName = "../../../../x64/Debug/chibicc.exe",
+                Arguments = $"\"{args}\"",
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+            var p = Process.Start(psInfo);
+            p?.WaitForExit();
+            return p?.StandardError.ReadToEnd() ?? string.Empty;
+        }
+
         [TestMethod]
         public void TestMethod1()
         {
@@ -86,6 +103,14 @@ namespace TestProject
         public void TestMethod3()
         {
             Assert.AreEqual(41, Compile(" 12 + 34 - 5 "));
+        }
+
+        [TestMethod]
+        public void TestMethod4()
+        {
+            Assert.AreEqual("1+3++\r\n    ^ 数ではありません\r\n", CompileError("1+3++"));
+            Assert.AreEqual("1+3 2\r\n    ^ '-'ではありません\r\n", CompileError("1+3 2"));
+            Assert.AreEqual("1 + foo + 5\r\n    ^ トークナイズできません\r\n", CompileError("1 + foo + 5"));
         }
     }
 }
