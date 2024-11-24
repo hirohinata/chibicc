@@ -2,5 +2,15 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="main.c" />
+    <ClCompile Include="lexer.c" />
+    <ClCompile Include="error.c" />
+    <ClCompile Include="parser.c" />
+    <ClCompile Include="asm_gen.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="lexer.h" />
+    <ClInclude Include="error.h" />
+    <ClInclude Include="parser.h" />
+    <ClInclude Include="asm_gen.h" />
   </ItemGroup>
 </Project>

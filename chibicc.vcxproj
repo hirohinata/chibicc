@@ -127,7 +127,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="asm_gen.c" />
+    <ClCompile Include="error.c" />
     <ClCompile Include="main.c" />
+    <ClCompile Include="parser.c" />
+    <ClCompile Include="lexer.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="asm_gen.h" />
+    <ClInclude Include="error.h" />
+    <ClInclude Include="lexer.h" />
+    <ClInclude Include="parser.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
