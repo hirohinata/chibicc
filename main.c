@@ -168,14 +168,22 @@ Node* primary(Token** ppToken) {
     return new_node_num(expect_number(ppToken));
 }
 
+Node* unary(Token** ppToken) {
+    if (consume(ppToken, '+'))
+        return unary(ppToken);
+    if (consume(ppToken, '-'))
+        return new_node(ND_SUB, new_node_num(0), unary(ppToken));
+    return primary(ppToken);
+}
+
 Node* mul(Token** ppToken) {
-    Node* node = primary(ppToken);
+    Node* node = unary(ppToken);
 
     for (;;) {
         if (consume(ppToken, '*'))
-            node = new_node(ND_MUL, node, primary(ppToken));
+            node = new_node(ND_MUL, node, unary(ppToken));
         else if (consume(ppToken, '/'))
-            node = new_node(ND_DIV, node, primary(ppToken));
+            node = new_node(ND_DIV, node, unary(ppToken));
         else
             return node;
     }

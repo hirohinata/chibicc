@@ -114,7 +114,7 @@ namespace TestProject
         [TestMethod]
         public void TestMethod4()
         {
-            Assert.AreEqual("1+3++\r\n    ^ 数ではありません\r\n", CompileError("1+3++"));
+            Assert.AreEqual("1+3++\r\n     ^ 数ではありません\r\n", CompileError("1+3++"));
             Assert.AreEqual("1+3 2\r\n    ^ 構文解釈できない字句 '2' が残りました\r\n", CompileError("1+3 2"));
             Assert.AreEqual("1 + foo + 5\r\n    ^ トークナイズできません\r\n", CompileError("1 + foo + 5"));
         }
@@ -124,7 +124,7 @@ namespace TestProject
         {
             Assert.AreEqual(7, Compile("1 + 2 * 3"));
             Assert.AreEqual(9, Compile("(1 + 2) * 3"));
-            Assert.AreEqual(-10, Compile("1 * 2 - 3 * 4"));
+            Assert.AreEqual(14, Compile("1 * 2 + 3 * 4"));
             Assert.AreEqual(1, Compile("(1 + 2) / 3"));
 
             Assert.AreEqual(47, Compile("5+6*7"));
@@ -136,6 +136,13 @@ namespace TestProject
         public void TestMethod6()
         {
             Assert.AreEqual("1+(3+2\r\n      ^ ')'ではありません\r\n", CompileError("1+(3+2"));
+        }
+
+        [TestMethod]
+        public void TestMethod7()
+        {
+            Assert.AreEqual(10, Compile("-10+20"));
+            Assert.AreEqual(17, Compile("+-+12 - -34 - - - 5"));
         }
     }
 }
