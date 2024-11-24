@@ -27,7 +27,7 @@ namespace TestProject
 
         private static void CallGcc(string? asm, out string exeFileName)
         {
-            var tempPath = $"{Path.GetTempPath()}chibicc\\{Guid.NewGuid().ToString("N").Substring(0, 8)}";
+            var tempPath = $"{Path.GetTempPath()}chibicc\\{DateTime.Now.ToString("yyMMdd_HHmmss.fffffff")}";
             Directory.CreateDirectory(tempPath);
 
             var asmFileName = Path.Combine(tempPath, "test.s");
@@ -41,10 +41,15 @@ namespace TestProject
                 WorkingDirectory = tempPath,
                 CreateNoWindow = true,
                 UseShellExecute = false,
-                RedirectStandardOutput = true
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
             };
 
-            Process.Start(psInfo)?.WaitForExit();
+            var p = Process.Start(psInfo);
+            p?.WaitForExit();
+
+            var error = p?.StandardError.ReadToEnd();
+            Assert.IsTrue(string.IsNullOrEmpty(error), error);
         }
 
         private static void CallExe(string exeFileName, out int exitCode)
@@ -109,8 +114,23 @@ namespace TestProject
         public void TestMethod4()
         {
             Assert.AreEqual("1+3++\r\n    ^ 数ではありません\r\n", CompileError("1+3++"));
-            Assert.AreEqual("1+3 2\r\n    ^ '-'ではありません\r\n", CompileError("1+3 2"));
+            Assert.AreEqual("1+3 2\r\n    ^ 構文解釈できない字句 '2' が残りました\r\n", CompileError("1+3 2"));
             Assert.AreEqual("1 + foo + 5\r\n    ^ トークナイズできません\r\n", CompileError("1 + foo + 5"));
+        }
+
+        [TestMethod]
+        public void TestMethod5()
+        {
+            Assert.AreEqual(7, Compile("1 + 2 * 3"));
+            Assert.AreEqual(9, Compile("(1 + 2) * 3"));
+            Assert.AreEqual(-10, Compile("1 * 2 - 3 * 4"));
+            Assert.AreEqual(1, Compile("(1 + 2) / 3"));
+        }
+
+        [TestMethod]
+        public void TestMethod6()
+        {
+            Assert.AreEqual("1+(3+2\r\n      ^ ')'ではありません\r\n", CompileError("1+(3+2"));
         }
     }
 }

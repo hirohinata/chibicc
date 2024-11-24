@@ -23,6 +23,25 @@ struct Token {
     const char* user_input;     // 分解元ユーザー入力文字列
 };
 
+// 抽象構文木のノードの種類
+typedef enum {
+    ND_ADD, // +
+    ND_SUB, // -
+    ND_MUL, // *
+    ND_DIV, // /
+    ND_NUM, // 整数
+} NodeKind;
+
+typedef struct Node Node;
+
+// 抽象構文木のノードの型
+struct Node {
+    NodeKind kind; // ノードの型
+    Node* lhs;     // 左辺
+    Node* rhs;     // 右辺
+    int val;       // kindがND_NUMの場合のみ使う
+};
+
 // エラーを報告するための関数
 // printfと同じ引数を取る
 void error(char* fmt, ...) {
@@ -102,7 +121,7 @@ Token* tokenize(const char* user_input) {
             continue;
         }
 
-        if (*p == '+' || *p == '-') {
+        if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')') {
             cur = new_token(TK_RESERVED, cur, p++, user_input);
             continue;
         }
@@ -120,6 +139,112 @@ Token* tokenize(const char* user_input) {
     return head.next;
 }
 
+Node* new_node(NodeKind kind, Node* lhs, Node* rhs) {
+    Node* node = calloc(1, sizeof(Node));
+    node->kind = kind;
+    node->lhs = lhs;
+    node->rhs = rhs;
+    return node;
+}
+
+Node* new_node_num(int val) {
+    Node* node = calloc(1, sizeof(Node));
+    node->kind = ND_NUM;
+    node->val = val;
+    return node;
+}
+
+Node* expr(Token** ppToken);
+
+Node* primary(Token** ppToken) {
+    // 次のトークンが"("なら、"(" expr ")"のはず
+    if (consume(ppToken, '(')) {
+        Node* node = expr(ppToken);
+        expect(ppToken, ')');
+        return node;
+    }
+
+    // そうでなければ数値のはず
+    return new_node_num(expect_number(ppToken));
+}
+
+Node* mul(Token** ppToken) {
+    Node* node = primary(ppToken);
+
+    for (;;) {
+        if (consume(ppToken, '*'))
+            node = new_node(ND_MUL, node, primary(ppToken));
+        else if (consume(ppToken, '/'))
+            node = new_node(ND_DIV, node, primary(ppToken));
+        else
+            return node;
+    }
+}
+
+Node* expr(Token** ppToken) {
+    Node* node = mul(ppToken);
+
+    for (;;) {
+        if (consume(ppToken, '+'))
+            node = new_node(ND_ADD, node, mul(ppToken));
+        else if (consume(ppToken, '-'))
+            node = new_node(ND_SUB, node, mul(ppToken));
+        else
+            return node;
+    }
+}
+
+Node* parse(Token* pToken) {
+    Node* pNode = expr(&pToken);
+
+    if (!at_eof(pToken)) {
+        error_at(pToken->user_input, pToken->str, "構文解釈できない字句 '%s' が残りました", pToken->str);
+    }
+
+    return pNode;
+}
+
+void gen(Node* pNode) {
+    if (!pNode) {
+        error("Internal Error. Node is NULL.");
+        return;
+    }
+
+    if (pNode->kind == ND_NUM) {
+        printf("  push %d\n", pNode->val);
+        return;
+    }
+
+    gen(pNode->lhs);
+    gen(pNode->rhs);
+    printf("  pop rdi\n");
+    printf("  pop rax\n");
+
+    switch (pNode->kind) {
+    case ND_ADD: // +
+        printf("  add rax, rdi\n");
+        break;
+    case ND_SUB: // -
+        printf("  sub rax, rdi\n");
+        break;
+    case ND_MUL: // *
+        printf("  imul rax, rdi\n");
+        break;
+    case ND_DIV: // /
+        printf("  cqo\n");
+        printf("  idiv rdi\n");
+        break;
+    case ND_NUM: // 整数
+        printf("  push %d\n", pNode->val);
+        break;
+    default:
+        error("Internal Error. Invalid NodeKind '%d'.", pNode->kind);
+        return;
+    }
+
+    printf("  push rax\n");
+}
+
 int main(int argc, char** argv) {
     if (argc != 2) {
         error("引数の個数が正しくありません");
@@ -129,27 +254,19 @@ int main(int argc, char** argv) {
     // トークナイズする
     Token* pToken = tokenize(argv[1]);
 
+    // 構文木を作成する
+    Node* pNode = parse(pToken);
+
     // アセンブリの前半部分を出力
     printf(".intel_syntax noprefix\n");
     printf(".globl main\n");
     printf("main:\n");
 
-    // 式の最初は数でなければならないので、それをチェックして
-    // 最初のmov命令を出力
-    printf("  mov rax, %d\n", expect_number(&pToken));
+    // 構文木からアセンブリを出力
+    gen(pNode);
 
-    // `+ <数>`あるいは`- <数>`というトークンの並びを消費しつつ
-    // アセンブリを出力
-    while (!at_eof(pToken)) {
-        if (consume(&pToken, '+')) {
-            printf("  add rax, %d\n", expect_number(&pToken));
-            continue;
-        }
-
-        expect(&pToken, '-');
-        printf("  sub rax, %d\n", expect_number(&pToken));
-    }
-
+    // 最終的な評価結果をraxにpop
+    printf("  pop rax\n");
     printf("  ret\n");
     return 0;
 }
