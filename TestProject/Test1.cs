@@ -10,13 +10,19 @@ namespace TestProject
             ProcessStartInfo psInfo = new()
             {
                 FileName = "../../../../x64/Debug/chibicc.exe",
-                Arguments = artuments,
+                Arguments = $"\"{artuments}\"",
                 CreateNoWindow = true,
                 UseShellExecute = false,
-                RedirectStandardOutput = true
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
             };
 
-            asm = Process.Start(psInfo)?.StandardOutput.ReadToEnd();
+            var p = Process.Start(psInfo);
+            p?.WaitForExit();
+            asm = p?.StandardOutput.ReadToEnd();
+
+            var error = p?.StandardError.ReadToEnd();
+            Assert.IsTrue(string.IsNullOrEmpty(error), error);
         }
 
         private static void CallGcc(string? asm, out string exeFileName)
@@ -74,6 +80,12 @@ namespace TestProject
         public void TestMethod2()
         {
             Assert.AreEqual(21, Compile("5+20-4"));
+        }
+
+        [TestMethod]
+        public void TestMethod3()
+        {
+            Assert.AreEqual(41, Compile(" 12 + 34 - 5 "));
         }
     }
 }
