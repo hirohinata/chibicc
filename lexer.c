@@ -21,6 +21,19 @@ bool consume(Token** ppToken, const char* op) {
     return true;
 }
 
+// 次のトークンが識別子のときには、トークンを1つ読み進めて
+// 識別子トークンを返す。それ以外の場合にはNULLを返す。
+const Token* consume_ident(Token** ppToken) {
+    if ((*ppToken)->kind != TK_IDENT) {
+        return NULL;
+    }
+
+    const Token* pIdentToken = *ppToken;
+    *ppToken = (*ppToken)->next;
+    return pIdentToken;
+
+}
+
 // 次のトークンが期待している記号のときには、トークンを1つ読み進める。
 // それ以外の場合にはエラーを報告する。
 void expect(Token** ppToken, const char* op) {
@@ -74,23 +87,33 @@ Token* tokenize(const char* user_input) {
             continue;
         }
 
-        if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')') {
+        // 一文字変数
+        if ('a' <= *p && *p <= 'z') {
+            cur = new_token(TK_IDENT, cur, p++, 1, user_input);
+            cur->len = 1;
+            continue;
+        }
+
+        // 一文字記号
+        if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')' || *p == ';') {
             cur = new_token(TK_RESERVED, cur, p++, 1, user_input);
             continue;
         }
 
+        // 二文字になり得る記号
         if (*p == '=' || *p == '!' || *p == '<' || *p == '>') {
             if (*(p + 1) == '=') {
                 cur = new_token(TK_RESERVED, cur, p, 2, user_input);
                 p += 2;
             }
             else {
-                //TODO: 現時点では代入演算子('=')や論理NOT('!')は構文解析が対応していない
+                //TODO: 現時点では論理NOT('!')は構文解析が対応していない
                 cur = new_token(TK_RESERVED, cur, p++, 1, user_input);
             }
             continue;
         }
 
+        // 数値リテラル
         if (isdigit(*p)) {
             const char* pEnd = p;
             int val = strtol(p, &pEnd, 10);

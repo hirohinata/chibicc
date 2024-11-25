@@ -15,7 +15,10 @@ static Node* mul(Token** ppToken);
 static Node* add(Token** ppToken);
 static Node* relational(Token** ppToken);
 static Node* equality(Token** ppToken);
+static Node* assign(Token** ppToken);
 static Node* expr(Token** ppToken);
+static Node* stmt(Token** ppToken);
+static Node* program(Token** ppToken);
 
 static Node* new_node(NodeKind kind, Node* lhs, Node* rhs) {
     Node* node = calloc(1, sizeof(Node));
@@ -37,6 +40,15 @@ static Node* primary(Token** ppToken) {
     if (consume(ppToken, "(")) {
         Node* node = expr(ppToken);
         expect(ppToken, ")");
+        return node;
+    }
+
+    // 次のトークンが識別子ならLVARノードを生成
+    Token* pIdentToken = consume_ident(ppToken);
+    if (pIdentToken) {
+        Node* node = calloc(1, sizeof(Node));
+        node->kind = ND_LVAR;
+        node->offset = (pIdentToken->str[0] - 'a' + 1) * 8;
         return node;
     }
 
@@ -108,18 +120,42 @@ static Node* equality(Token** ppToken) {
     }
 }
 
-static Node* expr(Token** ppToken) {
+static Node* assign(Token** ppToken) {
     Node* node = equality(ppToken);
+    if (consume(ppToken, "="))
+        node = new_node(ND_ASSIGN, node, assign(ppToken));
+    else
+        return node;
+}
 
+static Node* expr(Token** ppToken) {
+    return assign(ppToken);
+}
+
+static Node* stmt(Token** ppToken) {
+    Node* node = expr(ppToken);
+    expect(ppToken, ";");
     return node;
+}
+static Node* program(Token** ppToken) {
+    Node* pRoot = NULL;
+    Node* pCur = NULL;
+
+    while (!at_eof(*ppToken)) {
+        Node* pNode = new_node(ND_STMT, stmt(ppToken), NULL);
+
+        if (pRoot == NULL) {
+            pRoot = pNode;
+        }
+        else {
+            pCur->rhs = pNode;
+        }
+        pCur = pNode;
+    }
+
+    return pRoot;
 }
 
 Node* parse(Token* pToken) {
-    Node* pNode = expr(&pToken);
-
-    if (!at_eof(pToken)) {
-        error_at(pToken->user_input, pToken->str, "構文解釈できない字句 '%s' が残りました", pToken->str);
-    }
-
-    return pNode;
+    return program(&pToken);
 }

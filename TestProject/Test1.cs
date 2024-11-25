@@ -95,41 +95,41 @@ namespace TestProject
         [TestMethod]
         public void TestMethod1()
         {
-            Assert.AreEqual(0, Compile("0"));
-            Assert.AreEqual(42, Compile("42"));
+            Assert.AreEqual(0, Compile("0;"));
+            Assert.AreEqual(42, Compile("42;"));
         }
 
         [TestMethod]
         public void TestMethod2()
         {
-            Assert.AreEqual(21, Compile("5+20-4"));
+            Assert.AreEqual(21, Compile("5+20-4;"));
         }
 
         [TestMethod]
         public void TestMethod3()
         {
-            Assert.AreEqual(41, Compile(" 12 + 34 - 5 "));
+            Assert.AreEqual(41, Compile(" 12 + 34 - 5; "));
         }
 
         [TestMethod]
         public void TestMethod4()
         {
             Assert.AreEqual("1+3++\r\n     ^ 数ではありません\r\n", CompileError("1+3++"));
-            Assert.AreEqual("1+3 2\r\n    ^ 構文解釈できない字句 '2' が残りました\r\n", CompileError("1+3 2"));
-            Assert.AreEqual("1 + foo + 5\r\n    ^ トークナイズできません\r\n", CompileError("1 + foo + 5"));
+            Assert.AreEqual("1+3 2\r\n    ^ ';'ではありません\r\n", CompileError("1+3 2"));
+            Assert.AreEqual("1 + foo + 5\r\n     ^ ';'ではありません\r\n", CompileError("1 + foo + 5"));
         }
 
         [TestMethod]
         public void TestMethod5()
         {
-            Assert.AreEqual(7, Compile("1 + 2 * 3"));
-            Assert.AreEqual(9, Compile("(1 + 2) * 3"));
-            Assert.AreEqual(14, Compile("1 * 2 + 3 * 4"));
-            Assert.AreEqual(1, Compile("(1 + 2) / 3"));
+            Assert.AreEqual(7, Compile("1 + 2 * 3;"));
+            Assert.AreEqual(9, Compile("(1 + 2) * 3;"));
+            Assert.AreEqual(14, Compile("1 * 2 + 3 * 4;"));
+            Assert.AreEqual(1, Compile("(1 + 2) / 3;"));
 
-            Assert.AreEqual(47, Compile("5+6*7"));
-            Assert.AreEqual(15, Compile("5*(9-6)"));
-            Assert.AreEqual(4, Compile("(3+5)/2"));
+            Assert.AreEqual(47, Compile("5+6*7;"));
+            Assert.AreEqual(15, Compile("5*(9-6);"));
+            Assert.AreEqual(4, Compile("(3+5)/2;"));
         }
 
         [TestMethod]
@@ -141,36 +141,46 @@ namespace TestProject
         [TestMethod]
         public void TestMethod7()
         {
-            Assert.AreEqual(10, Compile("-10+20"));
-            Assert.AreEqual(17, Compile("+-+12 - -34 - - - 5"));
+            Assert.AreEqual(10, Compile("-10+20;"));
+            Assert.AreEqual(17, Compile("+-+12 - -34 - - - 5;"));
         }
 
         [TestMethod]
         public void TestMethod8()
         {
-            Assert.IsTrue(Compile("10 == 4 + 2 * 3") != 0);
-            Assert.IsFalse(Compile("10 == (4 + 2) * 3") != 0);
+            Assert.IsTrue(Compile("10 == 4 + 2 * 3;") != 0);
+            Assert.IsFalse(Compile("10 == (4 + 2) * 3;") != 0);
 
-            Assert.IsTrue(Compile("10 == 10") != 0);
-            Assert.IsFalse(Compile("10 != 10") != 0);
-            Assert.IsFalse(Compile("10 <  10") != 0);
-            Assert.IsTrue(Compile("10 <= 10") != 0);
-            Assert.IsFalse(Compile("10 >  10") != 0);
-            Assert.IsTrue(Compile("10 >= 10") != 0);
+            Assert.IsTrue(Compile("10 == 10;") != 0);
+            Assert.IsFalse(Compile("10 != 10;") != 0);
+            Assert.IsFalse(Compile("10 <  10;") != 0);
+            Assert.IsTrue(Compile("10 <= 10;") != 0);
+            Assert.IsFalse(Compile("10 >  10;") != 0);
+            Assert.IsTrue(Compile("10 >= 10;") != 0);
 
-            Assert.IsFalse(Compile("10 == 11") != 0);
-            Assert.IsTrue(Compile("10 != 11") != 0);
-            Assert.IsTrue(Compile("10 <  11") != 0);
-            Assert.IsTrue(Compile("10 <= 11") != 0);
-            Assert.IsFalse(Compile("10 >  11") != 0);
-            Assert.IsFalse(Compile("10 >= 11") != 0);
+            Assert.IsFalse(Compile("10 == 11;") != 0);
+            Assert.IsTrue(Compile("10 != 11;") != 0);
+            Assert.IsTrue(Compile("10 <  11;") != 0);
+            Assert.IsTrue(Compile("10 <= 11;") != 0);
+            Assert.IsFalse(Compile("10 >  11;") != 0);
+            Assert.IsFalse(Compile("10 >= 11;") != 0);
 
-            Assert.IsFalse(Compile("10 == 9") != 0);
-            Assert.IsTrue(Compile("10 != 9") != 0);
-            Assert.IsFalse(Compile("10 <  9") != 0);
-            Assert.IsFalse(Compile("10 <= 9") != 0);
-            Assert.IsTrue(Compile("10 >  9") != 0);
-            Assert.IsTrue(Compile("10 >= 9") != 0);
+            Assert.IsFalse(Compile("10 == 9;") != 0);
+            Assert.IsTrue(Compile("10 != 9;") != 0);
+            Assert.IsFalse(Compile("10 <  9;") != 0);
+            Assert.IsFalse(Compile("10 <= 9;") != 0);
+            Assert.IsTrue(Compile("10 >  9;") != 0);
+            Assert.IsTrue(Compile("10 >= 9;") != 0);
+        }
+
+        [TestMethod]
+        public void TestMethod9()
+        {
+            Assert.AreEqual(3, Compile("a = 3;"));
+            Assert.AreEqual(22, Compile("b = 5 * 6 - 8;"));
+            Assert.AreEqual(14, Compile("a = 3; b = 5 * 6 - 8; a + b / 2;"));
+
+            Assert.AreEqual(1, Compile("z = 65535; (z - 1) / 2 - 32766;"));
         }
     }
 }
