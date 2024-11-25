@@ -87,10 +87,12 @@ Token* tokenize(const char* user_input) {
             continue;
         }
 
-        // ˆê•¶š•Ï”
+        // ¯•Êq
         if ('a' <= *p && *p <= 'z') {
-            cur = new_token(TK_IDENT, cur, p++, 1, user_input);
-            cur->len = 1;
+            const char* pEnd = p;
+            do { pEnd++; } while ('a' <= *pEnd && *pEnd <= 'z');
+            cur = new_token(TK_IDENT, cur, p, (int)(pEnd - p), user_input);
+            p = pEnd;
             continue;
         }
 
