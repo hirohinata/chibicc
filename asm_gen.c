@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "lexer.h"
 #include "parser.h"
 #include "asm_gen.h"
 #include "error.h"
@@ -15,7 +16,7 @@ static void gen_lval(const Node* pNode) {
     }
 
     printf("  mov rax, rbp\n");
-    printf("  sub rax, %d\n", pNode->offset);
+    printf("  sub rax, %d\n", ((pNode->pToken->str[0] - 'a' + 1) * 8));
     printf("  push rax\n");
 }
 
@@ -28,7 +29,7 @@ static void gen_node(Node* pNode) {
     switch (pNode->kind) {
     case ND_NUM:
         // ”’lƒŠƒeƒ‰ƒ‹
-        printf("  push %d\n", pNode->val);
+        printf("  push %d\n", pNode->pToken->val);
         return;
     case ND_LVAR:
         // •Ï”
