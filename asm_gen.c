@@ -69,7 +69,7 @@ static void gen_lval(const Node* pNode, const LVar* pLVars) {
 }
 
 static void gen_if_stmt(Node* pNode, const LVar* pLVars, int* pLabelCount) {
-    const int endLabelId = *pLabelCount++;
+    const int endLabelId = (*pLabelCount)++;
 
     // ğŒ®‚ğ•]‰¿
     gen_node(pNode->children[0], pLVars, pLabelCount);
@@ -77,7 +77,7 @@ static void gen_if_stmt(Node* pNode, const LVar* pLVars, int* pLabelCount) {
     printf("  cmp rax, 0\n");
 
     if (pNode->rhs) {
-        const int elseLabelId = *pLabelCount++;
+        const int elseLabelId = (*pLabelCount)++;
 
         // ğŒ®‚ª‹U(0)‚È‚çelseƒ‰ƒxƒ‹‚ÖƒWƒƒƒ“ƒv
         printf("  je  .Lelse%04d\n", elseLabelId);

@@ -203,6 +203,8 @@ namespace TestProject
         {
             Assert.AreEqual(5, Compile("a = 3; if (a == 3) a = 5; return a;"));
             Assert.AreEqual(4, Compile("a = 4; if (a == 3) a = 5; return a;"));
+            Assert.AreEqual(5, Compile("a = 3; if (a == 3) a = 5; else a= 6; return a;"));
+            Assert.AreEqual(6, Compile("a = 4; if (a == 3) a = 5; else a= 6; return a;"));
         }
     }
 }
