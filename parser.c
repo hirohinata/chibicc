@@ -17,6 +17,7 @@ static Node* relational(Token** ppToken);
 static Node* equality(Token** ppToken);
 static Node* assign(Token** ppToken);
 static Node* expr(Token** ppToken);
+static Node* if_stmt(Token** ppToken);
 static Node* stmt(Token** ppToken);
 static Node* program(Token** ppToken);
 
@@ -148,6 +149,29 @@ static Node* expr(Token** ppToken) {
     return assign(ppToken);
 }
 
+static Node* if_stmt(Token** ppToken)
+{
+    Node* pIfNode = NULL;
+    Node* pConditionExpr = NULL;
+    Node* pIfBranchStmt = NULL;
+    Node* pElseBranchStmt = NULL;
+    const Token* pIfToken = *(ppToken - 1);
+
+    expect(ppToken, "(");
+    pConditionExpr = expr(ppToken);
+    expect(ppToken, ")");
+
+    pIfBranchStmt = stmt(ppToken);
+
+    if (consume_reserved_word(ppToken, TK_ELSE)) {
+        pElseBranchStmt = stmt(ppToken);
+    }
+
+    pIfNode = new_node(pIfToken, ND_IF, pIfBranchStmt, pElseBranchStmt);
+    pIfNode->children[0] = pConditionExpr;
+    return pIfNode;
+}
+
 static Node* stmt(Token** ppToken) {
     Node* node = NULL;
 
@@ -155,12 +179,17 @@ static Node* stmt(Token** ppToken) {
         node = calloc(1, sizeof(Node));
         node->kind = ND_RETURN;
         node->lhs = expr(ppToken);
+
+        expect(ppToken, ";");
+    }
+    else if (consume_reserved_word(ppToken, TK_IF)) {
+        node = if_stmt(ppToken);
     }
     else {
-        node = expr(ppToken);
+        node = new_node(NULL, ND_EXPR_STMT, expr(ppToken), NULL);
+        expect(ppToken, ";");
     }
 
-    expect(ppToken, ";");
     return node;
 }
 static Node* program(Token** ppToken) {

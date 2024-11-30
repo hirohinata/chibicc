@@ -105,6 +105,12 @@ Token* tokenize(const char* user_input) {
             if ((int)(pEnd - p) == 6 && strncmp(p, "return", 6) == 0) {
                 cur = new_token(TK_RETURN, cur, p, (int)(pEnd - p), user_input);
             }
+            else if ((int)(pEnd - p) == 2 && strncmp(p, "if", 2) == 0) {
+                cur = new_token(TK_IF, cur, p, (int)(pEnd - p), user_input);
+            }
+            else if ((int)(pEnd - p) == 4 && strncmp(p, "else", 4) == 0) {
+                cur = new_token(TK_ELSE, cur, p, (int)(pEnd - p), user_input);
+            }
             else {
                 cur = new_token(TK_IDENT, cur, p, (int)(pEnd - p), user_input);
             }
