@@ -21,7 +21,8 @@ struct LVar {
 };
 
 static void gen_lval(const Node* pNode, const LVar* pLVars);
-static void gen_if_stmt(Node * pNode, const LVar * pLVars, int* pLabelCount);
+static void gen_if_stmt(Node* pNode, const LVar* pLVars, int* pLabelCount);
+static void gen_while_stmt(Node * pNode, const LVar * pLVars, int* pLabelCount);
 static void gen_node(Node* pNode, const LVar* pLVars, int* pLabelCount);
 
 // 変数を名前で検索する。見つからなかった場合はNULLを返す。
@@ -86,7 +87,7 @@ static void gen_if_stmt(Node* pNode, const LVar* pLVars, int* pLabelCount) {
         gen_node(pNode->lhs, pLVars, pLabelCount);
         printf("  jmp .Lend%04d\n", endLabelId);
 
-        // elseラベルではelse-branchを評価（endラベルへは自然と落ちるためジャンプ不要）
+        // elseラベルではelse-branchを実行（endラベルへは自然と落ちるためジャンプ不要）
         printf(".Lelse%04d:\n", elseLabelId);
         gen_node(pNode->rhs, pLVars, pLabelCount);
     }
@@ -94,12 +95,34 @@ static void gen_if_stmt(Node* pNode, const LVar* pLVars, int* pLabelCount) {
         // 条件式が偽(0)ならendラベルへジャンプ
         printf("  je  .Lend%04d\n", endLabelId);
 
-        // 条件式が真なら(elseラベルへジャンプしていないなら)if-branchを評価
+        // 条件式が真なら(elseラベルへジャンプしていないなら)if-branchを実行
         gen_node(pNode->lhs, pLVars, pLabelCount);
     }
 
     printf(".Lend%04d:\n", endLabelId);
-    return;
+}
+
+static void gen_while_stmt(Node* pNode, const LVar* pLVars, int* pLabelCount) {
+    const int beginLabelId = (*pLabelCount)++;
+    const int endLabelId = (*pLabelCount)++;
+
+    printf(".Lbegin%04d:\n", beginLabelId);
+
+    // 条件式を評価
+    gen_node(pNode->lhs, pLVars, pLabelCount);
+    printf("  pop rax\n");
+    printf("  cmp rax, 0\n");
+
+    // 条件式が偽(0)ならendラベルへジャンプ
+    printf("  je  .Lend%04d\n", endLabelId);
+
+    // ループ対象の文を実行
+    gen_node(pNode->rhs, pLVars, pLabelCount);
+
+    // ループするためにbeginラベルへ無条件ジャンプ
+    printf("  jmp .Lbegin%04d\n", beginLabelId);
+
+    printf(".Lend%04d:\n", endLabelId);
 }
 
 static void gen_node(Node* pNode, const LVar* pLVars, int* pLabelCount) {
@@ -156,6 +179,10 @@ static void gen_node(Node* pNode, const LVar* pLVars, int* pLabelCount) {
     case ND_IF:
         // if文
         gen_if_stmt(pNode, pLVars, pLabelCount);
+        return;
+    case ND_WHILE:
+        // while文
+        gen_while_stmt(pNode, pLVars, pLabelCount);
         return;
     }
 

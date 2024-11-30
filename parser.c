@@ -18,6 +18,7 @@ static Node* equality(Token** ppToken);
 static Node* assign(Token** ppToken);
 static Node* expr(Token** ppToken);
 static Node* if_stmt(Token** ppToken);
+static Node* while_stmt(Token** ppToken);
 static Node* stmt(Token** ppToken);
 static Node* program(Token** ppToken);
 
@@ -172,6 +173,18 @@ static Node* if_stmt(Token** ppToken)
     return pIfNode;
 }
 
+static Node* while_stmt(Token** ppToken)
+{
+    Node* pConditionExpr = NULL;
+    const Token* pWhileToken = *(ppToken - 1);
+
+    expect(ppToken, "(");
+    pConditionExpr = expr(ppToken);
+    expect(ppToken, ")");
+
+    return new_node(pWhileToken, ND_WHILE, pConditionExpr, stmt(ppToken));
+}
+
 static Node* stmt(Token** ppToken) {
     Node* node = NULL;
 
@@ -184,6 +197,9 @@ static Node* stmt(Token** ppToken) {
     }
     else if (consume_reserved_word(ppToken, TK_IF)) {
         node = if_stmt(ppToken);
+    }
+    else if (consume_reserved_word(ppToken, TK_WHILE)) {
+        node = while_stmt(ppToken);
     }
     else {
         node = new_node(NULL, ND_EXPR_STMT, expr(ppToken), NULL);
