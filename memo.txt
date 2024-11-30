@@ -1,0 +1,16 @@
+ステップ12: 制御構文を足す
+
+if (A) B else Cは次のようなアセンブリにコンパイルします。
+
+  Aをコンパイルしたコード // スタックトップに結果が入っているはず
+  pop rax
+  cmp rax, 0
+  je  .LelseXXX
+  Bをコンパイルしたコード
+  jmp .LendXXX
+.LelseXXX
+  Cをコンパイルしたコード
+.LendXXX
+
+
+.LelseXXX, .LendXXXにコロン必須
