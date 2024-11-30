@@ -149,7 +149,17 @@ static Node* expr(Token** ppToken) {
 }
 
 static Node* stmt(Token** ppToken) {
-    Node* node = expr(ppToken);
+    Node* node = NULL;
+
+    if (consume_reserved_word(ppToken, TK_RETURN)) {
+        node = calloc(1, sizeof(Node));
+        node->kind = ND_RETURN;
+        node->lhs = expr(ppToken);
+    }
+    else {
+        node = expr(ppToken);
+    }
+
     expect(ppToken, ";");
     return node;
 }

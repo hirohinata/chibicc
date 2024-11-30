@@ -21,6 +21,16 @@ bool consume(Token** ppToken, const char* op) {
     return true;
 }
 
+// 次のトークンが期待している記号のときには、トークンを1つ読み進めて
+// 真を返す。それ以外の場合には偽を返す。
+bool consume_reserved_word(Token** ppToken, TokenKind token_kind) {
+    if ((*ppToken)->kind != token_kind) {
+        return false;
+    }
+    *ppToken = (*ppToken)->next;
+    return true;
+}
+
 // 次のトークンが識別子のときには、トークンを1つ読み進めて
 // 識別子トークンを返す。それ以外の場合にはNULLを返す。
 const Token* consume_ident(Token** ppToken) {
@@ -91,7 +101,13 @@ Token* tokenize(const char* user_input) {
         if ('a' <= *p && *p <= 'z') {
             const char* pEnd = p;
             do { pEnd++; } while ('a' <= *pEnd && *pEnd <= 'z');
-            cur = new_token(TK_IDENT, cur, p, (int)(pEnd - p), user_input);
+
+            if ((int)(pEnd - p) == 6 && strncmp(p, "return", 6) == 0) {
+                cur = new_token(TK_RETURN, cur, p, (int)(pEnd - p), user_input);
+            }
+            else {
+                cur = new_token(TK_IDENT, cur, p, (int)(pEnd - p), user_input);
+            }
             p = pEnd;
             continue;
         }

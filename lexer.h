@@ -3,6 +3,7 @@
 // トークンの種類
 typedef enum {
     TK_RESERVED, // 記号
+    TK_RETURN,   // return
     TK_IDENT,    // 識別子
     TK_NUM,      // 整数トークン
     TK_EOF,      // 入力の終わりを表すトークン
@@ -23,6 +24,10 @@ struct Token {
 // 次のトークンが期待している記号のときには、トークンを1つ読み進めて
 // 真を返す。それ以外の場合には偽を返す。
 bool consume(Token** ppToken, const char* op);
+
+// 次のトークンが期待している記号のときには、トークンを1つ読み進めて
+// 真を返す。それ以外の場合には偽を返す。
+bool consume_reserved_word(Token** ppToken, TokenKind token_kind);
 
 // 次のトークンが識別子のときには、トークンを1つ読み進めて
 // 識別子トークンを返す。それ以外の場合にはNULLを返す。

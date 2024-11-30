@@ -189,5 +189,13 @@ namespace TestProject
             Assert.AreEqual(6, Compile("foo = 1; bar = 2 + 3; foo + bar;"));
             Assert.AreEqual(6, Compile("a = 1; aa = 2; aaa = 3; a + aa + aaa;"));
         }
+
+        [TestMethod]
+        public void TestMethod11()
+        {
+            Assert.AreEqual(14, Compile("a = 3; b = 5 * 6 - 8; return a + b / 2;"));
+            Assert.AreEqual(5, Compile("return 5; return 8;"));
+            Assert.AreEqual(11, Compile("returnx = 5; ret = 6; return returnx + ret;"));
+        }
     }
 }

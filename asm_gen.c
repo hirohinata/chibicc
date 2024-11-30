@@ -103,6 +103,14 @@ static void gen_node(Node* pNode, const LVar* pLVars) {
         // Œp‘±•¶‚ª‚ ‚é‚È‚ç‚»‚ê‚ğ•]‰¿
         if (pNode->rhs) gen_node(pNode->rhs, pLVars);
         return;
+    case ND_RETURN:
+        // return•¶
+        gen_node(pNode->lhs, pLVars);
+        printf("  pop rax\n");
+        printf("  mov rsp, rbp\n");
+        printf("  pop rbp\n");
+        printf("  ret\n");
+        return;
     }
 
     // “ñ€‰‰Z

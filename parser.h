@@ -14,6 +14,7 @@ typedef enum {
     ND_ASSIGN,  // =
     ND_LVAR,    // ƒ[ƒJƒ‹•Ï”
     ND_NUM,     // ®”
+    ND_RETURN,  // return•¶
 } NodeKind;
 
 typedef struct Token Token;
