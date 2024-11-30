@@ -213,5 +213,14 @@ namespace TestProject
             Assert.AreEqual(10, Compile("a = 0; while (a < 10) a = a + 1; return a;"));
             Assert.AreEqual(15, Compile("a = 15; while (a < 10) a = a + 1; return a;"));
         }
+
+        [TestMethod]
+        public void TestMethod14()
+        {
+            Assert.AreEqual(10, Compile("a = 0; for (i = 0; i < 5; i = i + 1) a = a + i; return a;"));
+            Assert.AreEqual(5, Compile("a = 0; for (i = 1; a < 5;) a = a + i; return a;"));
+            Assert.AreEqual(10, Compile("a = 0; for (; a < 10;) a = a + 1; return a;"));
+            //TODO:breakを実装していないため、条件式を省略したら無限ループになってしまいテストができない
+        }
     }
 }

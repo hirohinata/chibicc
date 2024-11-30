@@ -19,6 +19,7 @@ static Node* assign(Token** ppToken);
 static Node* expr(Token** ppToken);
 static Node* if_stmt(Token** ppToken);
 static Node* while_stmt(Token** ppToken);
+static Node* for_stmt(Token** ppToken);
 static Node* stmt(Token** ppToken);
 static Node* program(Token** ppToken);
 
@@ -185,6 +186,35 @@ static Node* while_stmt(Token** ppToken)
     return new_node(pWhileToken, ND_WHILE, pConditionExpr, stmt(ppToken));
 }
 
+static Node* for_stmt(Token** ppToken)
+{
+    Node* pForExpr = NULL;
+    Node* pInitExpr = NULL;
+    Node* pCondExpr = NULL;
+    Node* pLoopExpr = NULL;
+    const Token* pForToken = *(ppToken - 1);
+
+    expect(ppToken, "(");
+    if (!consume(ppToken, ";")) {
+        pInitExpr = expr(ppToken);
+        expect(ppToken, ";");
+    }
+    if (!consume(ppToken, ";")) {
+        pCondExpr = expr(ppToken);
+        expect(ppToken, ";");
+    }
+    if (!consume(ppToken, ")")) {
+        pLoopExpr = expr(ppToken);
+        expect(ppToken, ")");
+    }
+
+    pForExpr = new_node(pForToken, ND_FOR, NULL, stmt(ppToken));
+    pForExpr->children[0] = pInitExpr;
+    pForExpr->children[1] = pCondExpr;
+    pForExpr->children[2] = pLoopExpr;
+    return pForExpr;
+}
+
 static Node* stmt(Token** ppToken) {
     Node* node = NULL;
 
@@ -200,6 +230,9 @@ static Node* stmt(Token** ppToken) {
     }
     else if (consume_reserved_word(ppToken, TK_WHILE)) {
         node = while_stmt(ppToken);
+    }
+    else if (consume_reserved_word(ppToken, TK_FOR)) {
+        node = for_stmt(ppToken);
     }
     else {
         node = new_node(NULL, ND_EXPR_STMT, expr(ppToken), NULL);

@@ -13,4 +13,22 @@ if (A) B else Cは次のようなアセンブリにコンパイルします。
 .LendXXX
 
 
-.LelseXXX, .LendXXXにコロン必須
+	.LelseXXX, .LendXXXにコロン必須
+
+
+
+for (A; B; C) Dは次のようにコンパイルします。
+
+  Aをコンパイルしたコード
+.LbeginXXX:
+  Bをコンパイルしたコード
+  pop rax
+  cmp rax, 0
+  je  .LendXXX
+  Dをコンパイルしたコード
+  Cをコンパイルしたコード
+  jmp .LbeginXXX
+.LendXXX:
+
+
+	Aの結果やCの結果をスタックから破棄必要

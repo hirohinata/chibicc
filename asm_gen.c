@@ -22,7 +22,8 @@ struct LVar {
 
 static void gen_lval(const Node* pNode, const LVar* pLVars);
 static void gen_if_stmt(Node* pNode, const LVar* pLVars, int* pLabelCount);
-static void gen_while_stmt(Node * pNode, const LVar * pLVars, int* pLabelCount);
+static void gen_while_stmt(Node* pNode, const LVar* pLVars, int* pLabelCount);
+static void gen_for_stmt(Node * pNode, const LVar * pLVars, int* pLabelCount);
 static void gen_node(Node* pNode, const LVar* pLVars, int* pLabelCount);
 
 // 変数を名前で検索する。見つからなかった場合はNULLを返す。
@@ -125,6 +126,59 @@ static void gen_while_stmt(Node* pNode, const LVar* pLVars, int* pLabelCount) {
     printf(".Lend%04d:\n", endLabelId);
 }
 
+static void gen_for_stmt(Node* pNode, const LVar* pLVars, int* pLabelCount) {
+    /*
+  Aをコンパイルしたコード
+.LbeginXXX:
+  Bをコンパイルしたコード
+  pop rax
+  cmp rax, 0
+  je  .LendXXX
+  Dをコンパイルしたコード
+  Cをコンパイルしたコード
+  jmp .LbeginXXX
+.LendXXX:
+    */
+    const int beginLabelId = (*pLabelCount)++;
+    const int endLabelId = (*pLabelCount)++;
+
+    // 初期化式を評価
+    if (pNode->children[0]) {
+        gen_node(pNode->children[0], pLVars, pLabelCount);
+        // 式の評価結果としてスタックに一つの値が残っている
+        // はずなので、スタックが溢れないようにポップしておく
+        printf("  pop rax\n");
+    }
+
+    printf(".Lbegin%04d:\n", beginLabelId);
+
+    // 条件式を評価
+    if (pNode->children[1]) {
+        gen_node(pNode->children[1], pLVars, pLabelCount);
+        printf("  pop rax\n");
+        printf("  cmp rax, 0\n");
+
+        // 条件式が偽(0)ならendラベルへジャンプ
+        printf("  je  .Lend%04d\n", endLabelId);
+    }
+
+    // ループ対象の文を実行
+    gen_node(pNode->rhs, pLVars, pLabelCount);
+
+    // ループごとに評価する式を評価
+    if (pNode->children[2]) {
+        gen_node(pNode->children[2], pLVars, pLabelCount);
+        // 式の評価結果としてスタックに一つの値が残っている
+        // はずなので、スタックが溢れないようにポップしておく
+        printf("  pop rax\n");
+    }
+
+    // ループするためにbeginラベルへ無条件ジャンプ
+    printf("  jmp .Lbegin%04d\n", beginLabelId);
+
+    printf(".Lend%04d:\n", endLabelId);
+}
+
 static void gen_node(Node* pNode, const LVar* pLVars, int* pLabelCount) {
     if (!pNode) {
         error("Internal Error. Node is NULL.");
@@ -183,6 +237,10 @@ static void gen_node(Node* pNode, const LVar* pLVars, int* pLabelCount) {
     case ND_WHILE:
         // while文
         gen_while_stmt(pNode, pLVars, pLabelCount);
+        return;
+    case ND_FOR:
+        // for文
+        gen_for_stmt(pNode, pLVars, pLabelCount);
         return;
     }
 
