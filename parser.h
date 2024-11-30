@@ -2,7 +2,8 @@
 
 // 抽象構文木のノードの種類
 typedef enum {
-    ND_STMT,        // 文
+    ND_NOP,         // 何もしない空要素
+    ND_BLOCK,       // ブロック
     ND_ADD,         // +
     ND_SUB,         // -
     ND_MUL,         // *

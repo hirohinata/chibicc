@@ -20,6 +20,7 @@ static Node* expr(Token** ppToken);
 static Node* if_stmt(Token** ppToken);
 static Node* while_stmt(Token** ppToken);
 static Node* for_stmt(Token** ppToken);
+static Node* compound_stmt(Token** ppToken);
 static Node* stmt(Token** ppToken);
 static Node* program(Token** ppToken);
 
@@ -215,6 +216,29 @@ static Node* for_stmt(Token** ppToken)
     return pForExpr;
 }
 
+static Node* compound_stmt(Token** ppToken) {
+    Node* pRoot = NULL;
+    Node* pCur = NULL;
+
+    while (!consume(ppToken, "}")) {
+        Node* pNode = new_node(NULL, ND_BLOCK, stmt(ppToken), NULL);
+
+        if (pRoot == NULL) {
+            pRoot = pNode;
+        }
+        else {
+            pCur->rhs = pNode;
+        }
+        pCur = pNode;
+    }
+
+    if (pRoot == NULL) {
+        pRoot = new_node(NULL, ND_NOP, NULL, NULL);
+    }
+
+    return pRoot;
+}
+
 static Node* stmt(Token** ppToken) {
     Node* node = NULL;
 
@@ -234,6 +258,9 @@ static Node* stmt(Token** ppToken) {
     else if (consume_reserved_word(ppToken, TK_FOR)) {
         node = for_stmt(ppToken);
     }
+    else if (consume(ppToken, "{")) {
+        node = compound_stmt(ppToken);
+    }
     else {
         node = new_node(NULL, ND_EXPR_STMT, expr(ppToken), NULL);
         expect(ppToken, ";");
@@ -246,7 +273,7 @@ static Node* program(Token** ppToken) {
     Node* pCur = NULL;
 
     while (!at_eof(*ppToken)) {
-        Node* pNode = new_node(NULL, ND_STMT, stmt(ppToken), NULL);
+        Node* pNode = new_node(NULL, ND_BLOCK, stmt(ppToken), NULL);
 
         if (pRoot == NULL) {
             pRoot = pNode;

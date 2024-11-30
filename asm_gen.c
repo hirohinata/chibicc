@@ -186,6 +186,9 @@ static void gen_node(Node* pNode, const LVar* pLVars, int* pLabelCount) {
     }
 
     switch (pNode->kind) {
+    case ND_NOP:
+        // 何もしない
+        return;
     case ND_NUM:
         // 数値リテラル
         printf("  push %d\n", pNode->pToken->val);
@@ -207,8 +210,8 @@ static void gen_node(Node* pNode, const LVar* pLVars, int* pLabelCount) {
         printf("  mov [rax], rdi\n");
         printf("  push rdi\n");
         return;
-    case ND_STMT:
-        // 文
+    case ND_BLOCK:
+        // ブロック
         gen_node(pNode->lhs, pLVars, pLabelCount);
 
         // 継続文があるならそれを評価

@@ -222,5 +222,13 @@ namespace TestProject
             Assert.AreEqual(10, Compile("a = 0; for (; a < 10;) a = a + 1; return a;"));
             //TODO:breakを実装していないため、条件式を省略したら無限ループになってしまいテストができない
         }
+
+        [TestMethod]
+        public void TestMethod15()
+        {
+            Assert.AreEqual(4, Compile("a = 1; b = 2; if (a < b) { a = 4; b = 5; } else { a = 6; b = 7; } return a;"));
+            Assert.AreEqual(6, Compile("a = 3; b = 2; if (a < b) { a = 4; b = 5; } else { a = 6; b = 7; } return a;"));
+            Assert.AreEqual(8, Compile("a = 8; {} {{}} return a;"));
+        }
     }
 }

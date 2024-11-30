@@ -125,7 +125,7 @@ Token* tokenize(const char* user_input) {
         }
 
         // ˆê•¶š‹L†
-        if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')' || *p == ';') {
+        if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')' || *p == '{' || *p == '}' || *p == ';') {
             cur = new_token(TK_RESERVED, cur, p++, 1, user_input);
             continue;
         }
