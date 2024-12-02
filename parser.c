@@ -57,7 +57,17 @@ static Node* primary(Token** ppToken) {
         // さらに次のトークンが"("なら関数呼び出し
         if (consume(ppToken, "(")) {
             Node* pInvokeNode = new_node(pIdentToken, ND_INVOKE, NULL, NULL);
-            expect(ppToken, ")");
+            const int maxParam = sizeof(pInvokeNode->children) / sizeof(pInvokeNode->children[0]);
+            int argCount = 0;
+            while (!consume(ppToken, ")")) {
+                if (maxParam <= argCount) {
+                    error_at((*ppToken)->user_input, (*ppToken)->str, "引数の数が%d個以上ある関数呼び出しは非対応です", maxParam);
+                }
+                if (0 < argCount) {
+                    expect(ppToken, ",");
+                }
+                pInvokeNode->children[argCount++] = expr(ppToken);
+            }
             return pInvokeNode;
         }
 

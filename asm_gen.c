@@ -23,7 +23,8 @@ struct LVar {
 static void gen_lval(const Node* pNode, const LVar* pLVars);
 static void gen_if_stmt(Node* pNode, const LVar* pLVars, int* pLabelCount);
 static void gen_while_stmt(Node* pNode, const LVar* pLVars, int* pLabelCount);
-static void gen_for_stmt(Node * pNode, const LVar * pLVars, int* pLabelCount);
+static void gen_for_stmt(Node* pNode, const LVar* pLVars, int* pLabelCount);
+static void gen_invoke_stmt(Node * pNode, const LVar * pLVars, int* pLabelCount);
 static void gen_node(Node* pNode, const LVar* pLVars, int* pLabelCount);
 
 // 変数を名前で検索する。見つからなかった場合はNULLを返す。
@@ -179,6 +180,46 @@ static void gen_for_stmt(Node* pNode, const LVar* pLVars, int* pLabelCount) {
     printf(".Lend%04d:\n", endLabelId);
 }
 
+static void gen_invoke_stmt(Node* pNode, const LVar* pLVars, int* pLabelCount) {
+    int i;
+    const char regNames[][4] = { "rcx", "rdx", "r8", "r9" };
+    char funcName[64] = { 0 };
+
+    _STATIC_ASSERT(sizeof(regNames) / sizeof(regNames[0]) == sizeof(pNode->children) / sizeof(pNode->children[0]));
+
+    if (64 <= pNode->pToken->len) {
+        error_at(pNode->pToken->user_input, pNode->pToken->str, "関数名が64文字以上あります");
+    }
+    memcpy(funcName, pNode->pToken->str, pNode->pToken->len);
+
+    // 引数を順に評価して、対応するレジスタに格納
+    for (i = 0; i < sizeof(pNode->children) / sizeof(pNode->children[0]); ++i) {
+        if (pNode->children[i] == NULL) break;
+
+        gen_node(pNode->children[i], pLVars, pLabelCount);
+        printf("  pop %s\n", regNames[i]);
+    }
+
+    // 呼び出し先でrax全体を利用するとは限らないのでゼロクリアを挟む
+    printf("  mov rax, 0\n");
+
+    // rspを16の倍数にそろえる（x86-64のABIによる制約）
+    //     rspはr15に退避しておく
+    //     下位バイトを0埋めしたら16の倍数になる
+    // TODO: rspを16の倍数にそろえているはずだが、それだと高頻度で異常値が返るため下位バイトすべてを0埋めしている。
+    //       この状態でも異常値が返ることがあるが、頻度は下がっている。
+    //       おそらくは他に守るべき制約があるものと思われる。
+    printf("  mov  r15, rsp\n");
+    printf("  mov  spl, 0\n");
+
+    printf("  call %s\n", funcName);
+
+    printf("  mov  rsp, r15\n");
+
+    // 戻り値はraxに格納されているのでそれをpushする
+    printf("  push rax\n");
+}
+
 static void gen_node(Node* pNode, const LVar* pLVars, int* pLabelCount) {
     if (!pNode) {
         error("Internal Error. Node is NULL.");
@@ -202,15 +243,7 @@ static void gen_node(Node* pNode, const LVar* pLVars, int* pLabelCount) {
         return;
     case ND_INVOKE:
         // 関数呼び出し
-        if (64 <= pNode->pToken->len) {
-            error_at(pNode->pToken->user_input, pNode->pToken->str, "関数名が64文字以上あります");
-        }
-        else {
-            char funcName[64] = { 0 };
-            memcpy(funcName, pNode->pToken->str, pNode->pToken->len);
-            printf("  call %s\n", funcName);
-            printf("  push rax\n");
-        }
+        gen_invoke_stmt(pNode, pLVars, pLabelCount);
         return;
     case ND_ASSIGN:
         // 代入演算
@@ -313,9 +346,6 @@ void gen(Node* pNode) {
     // 変数登録を行う
     LVar* pLVars = NULL;
     int stack_size = resigter_lvars(&pLVars, pNode);
-
-    // rspを16の倍数にそろえる（x86-64のABIによる制約）
-    stack_size = (stack_size + 15) / 16 * 16;
 
     // アセンブリの前半部分を出力
     printf(".intel_syntax noprefix\n");

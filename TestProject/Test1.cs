@@ -256,6 +256,9 @@ namespace TestProject
         public void TestMethod16()
         {
             Assert.AreEqual(42, Compile("return foo();", "int foo() { return 42; }"));
+            Assert.AreEqual(52, Compile("return foo(10);", "int foo(int a) { return a + 42; }"));
+            Assert.AreEqual(13, Compile("return foo(2, 3);", "int foo(int a, int b) { return (a * 5) + b; }"));
+            Assert.AreEqual(32, Compile("return foo(1, 2, 3, 4);", "int foo(int a, int b, int c, int d) { return (a * 5) + b - c + (d * 7); }"));
         }
     }
 }
