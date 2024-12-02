@@ -200,6 +200,18 @@ static void gen_node(Node* pNode, const LVar* pLVars, int* pLabelCount) {
         printf("  mov rax, [rax]\n");
         printf("  push rax\n");
         return;
+    case ND_INVOKE:
+        // 関数呼び出し
+        if (64 <= pNode->pToken->len) {
+            error_at(pNode->pToken->user_input, pNode->pToken->str, "関数名が64文字以上あります");
+        }
+        else {
+            char funcName[64] = { 0 };
+            memcpy(funcName, pNode->pToken->str, pNode->pToken->len);
+            printf("  call %s\n", funcName);
+            printf("  push rax\n");
+        }
+        return;
     case ND_ASSIGN:
         // 代入演算
         gen_lval(pNode->lhs, pLVars);
@@ -301,6 +313,9 @@ void gen(Node* pNode) {
     // 変数登録を行う
     LVar* pLVars = NULL;
     int stack_size = resigter_lvars(&pLVars, pNode);
+
+    // rspを16の倍数にそろえる（x86-64のABIによる制約）
+    stack_size = (stack_size + 15) / 16 * 16;
 
     // アセンブリの前半部分を出力
     printf(".intel_syntax noprefix\n");

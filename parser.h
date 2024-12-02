@@ -13,6 +13,7 @@ typedef enum {
     ND_LT,          // <
     ND_LE,          // <=
     ND_ASSIGN,      // =
+    ND_INVOKE,      // ŠÖ”ŒÄ‚Ño‚µ
     ND_LVAR,        // ƒ[ƒJƒ‹•Ï”
     ND_NUM,         // ®”
     ND_EXPR_STMT,   // Ž®•¶

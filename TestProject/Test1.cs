@@ -6,7 +6,7 @@ namespace TestProject
     [TestClass]
     public sealed class Test1
     {
-        private static void CallCompiler(string arguments, out string? asm)
+        private static void CallCompiler(string arguments, out string asm)
         {
             ProcessStartInfo psInfo = new()
             {
@@ -20,37 +20,58 @@ namespace TestProject
 
             var p = Process.Start(psInfo);
             p?.WaitForExit();
-            asm = p?.StandardOutput.ReadToEnd();
+            asm = p?.StandardOutput.ReadToEnd() ?? string.Empty;
 
             var error = p?.StandardError.ReadToEnd();
             Assert.IsTrue(string.IsNullOrEmpty(error), error);
         }
 
-        private static void CallGcc(string? asm, out string exeFileName)
+        private static void CallGcc(string asm, string? otherCode, out string exeFileName)
         {
             var tempPath = $"{Path.GetTempPath()}chibicc\\{DateTime.Now.ToString("yyMMdd_HHmmss.fffffff")}";
             Directory.CreateDirectory(tempPath);
 
-            var asmFileName = Path.Combine(tempPath, "test.s");
-            exeFileName = Path.Combine(tempPath, "test.exe");
-            File.WriteAllText(asmFileName, asm);
-
-            ProcessStartInfo psInfo = new()
+            string outFileName;
             {
-                FileName = "cmd",
-                Arguments = $"/c \"gcc {asmFileName} -o {exeFileName}\"",
-                WorkingDirectory = tempPath,
-                CreateNoWindow = true,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
+                var asmFileName = Path.Combine(tempPath, "test.s");
+                File.WriteAllText(asmFileName, asm);
 
-            var p = Process.Start(psInfo);
-            p?.WaitForExit();
+                outFileName = Path.Combine(tempPath, "test.o");
+                Core(tempPath, $"-c {asmFileName}", outFileName);
+            }
 
-            var error = p?.StandardError.ReadToEnd();
-            Assert.IsTrue(string.IsNullOrEmpty(error), error);
+            string otherOutFileName = string.Empty;
+            if (otherCode != null)
+            {
+                var otherFileName = Path.Combine(tempPath, "other.c");
+                File.WriteAllText(otherFileName, otherCode);
+
+                otherOutFileName = Path.Combine(tempPath, "other.o");
+                Core(tempPath, $"-c {otherFileName}", otherOutFileName);
+            }
+
+            exeFileName = Path.Combine(tempPath, "test.exe");
+            Core(tempPath, $"{outFileName} {otherOutFileName}", exeFileName);
+
+            static void Core(string directory, string input, string output)
+            {
+                ProcessStartInfo psInfo = new()
+                {
+                    FileName = "cmd",
+                    Arguments = $"/c \"gcc {input} -o {output}\"",
+                    WorkingDirectory = directory,
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+
+                var p = Process.Start(psInfo);
+                p?.WaitForExit();
+
+                var error = p?.StandardError.ReadToEnd();
+                Assert.IsTrue(string.IsNullOrEmpty(error), error);
+            }
         }
 
         private static void CallExe(string exeFileName, out int exitCode)
@@ -67,10 +88,10 @@ namespace TestProject
             exitCode = p?.ExitCode ?? -1;
         }
 
-        private static int Compile(string args)
+        private static int Compile(string args, string? otherCode = null)
         {
             CallCompiler(args, out var asm);
-            CallGcc(asm, out var exeFileName);
+            CallGcc(asm, otherCode, out var exeFileName);
             CallExe(exeFileName, out var exitCode);
             return exitCode;
         }
@@ -229,6 +250,12 @@ namespace TestProject
             Assert.AreEqual(4, Compile("a = 1; b = 2; if (a < b) { a = 4; b = 5; } else { a = 6; b = 7; } return a;"));
             Assert.AreEqual(6, Compile("a = 3; b = 2; if (a < b) { a = 4; b = 5; } else { a = 6; b = 7; } return a;"));
             Assert.AreEqual(8, Compile("a = 8; {} {{}} return a;"));
+        }
+
+        [TestMethod]
+        public void TestMethod16()
+        {
+            Assert.AreEqual(42, Compile("return foo();", "int foo() { return 42; }"));
         }
     }
 }

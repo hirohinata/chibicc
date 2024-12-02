@@ -51,9 +51,17 @@ static Node* primary(Token** ppToken) {
         return node;
     }
 
-    // 次のトークンが識別子ならLVARノードを生成
+    // 次のトークンが識別子なら
     const Token* pIdentToken = consume_ident(ppToken);
     if (pIdentToken) {
+        // さらに次のトークンが"("なら関数呼び出し
+        if (consume(ppToken, "(")) {
+            Node* pInvokeNode = new_node(pIdentToken, ND_INVOKE, NULL, NULL);
+            expect(ppToken, ")");
+            return pInvokeNode;
+        }
+
+        // そうでなければLVARノードを生成
         Node* node = calloc(1, sizeof(Node));
         node->kind = ND_LVAR;
         node->pToken = pIdentToken;
