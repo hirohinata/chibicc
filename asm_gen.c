@@ -10,19 +10,10 @@
 #include "asm_gen.h"
 #include "error.h"
 
-#define MAX_FUNC_NAME (64)
+#define MAX_FUNC_NAME_LEN (64)
 
-typedef struct Param Param;
 typedef struct LVar LVar;
 typedef struct FuncContext FuncContext;
-
-// 引数の型
-struct Param {
-    Param* next;            // 次の引数かNULL
-    const char* name;       // 引数の名前
-    int len;                // 名前の長さ
-    const char* pszRegName; // 対応レジストリ名
-};
 
 // ローカル変数の型
 struct LVar {
@@ -34,8 +25,7 @@ struct LVar {
 
 // 関数定義内の環境
 struct FuncContext {
-    Param* pParams;         // 引数テーブル
-    LVar* pLVars;           // ローカル変数テーブル
+    LVar* pLVars;           // ローカル変数テーブル（引数も展開する）
 };
 
 static const char PARAM_REG_NAME[][4] = { "rcx", "rdx", "r8", "r9" };
@@ -61,22 +51,39 @@ static const LVar* find_lvar(const LVar* pLVarTop, const Node* pNode) {
 }
 
 // 変数を登録し、総消費スタックサイズを返す。
-static int resigter_lvars(LVar** ppLVarTop, const Node* pNode) {
+static int resigter_lvars(FuncContext* pContext, const Node* pNode) {
     if (pNode->kind == ND_LVAR &&
-        find_lvar(*ppLVarTop, pNode) == NULL)
+        find_lvar(pContext->pLVars, pNode) == NULL)
     {
         LVar* pVar = calloc(1, sizeof(LVar));
-        pVar->next = *ppLVarTop;
+        pVar->next = pContext->pLVars;
         pVar->name = pNode->pToken->str;
         pVar->len = pNode->pToken->len;
-        pVar->offset = (*ppLVarTop ? (*ppLVarTop)->offset : 0) + 8;
-        *ppLVarTop = pVar;
+        pVar->offset = (pContext->pLVars ? pContext->pLVars->offset : 0) + 8;
+        pContext->pLVars = pVar;
     }
 
-    if (pNode->lhs) resigter_lvars(ppLVarTop, pNode->lhs);
-    if (pNode->rhs) resigter_lvars(ppLVarTop, pNode->rhs);
+    if (pNode->lhs) resigter_lvars(pContext, pNode->lhs);
+    if (pNode->rhs) resigter_lvars(pContext, pNode->rhs);
 
-    return (*ppLVarTop ? (*ppLVarTop)->offset : 0);
+    return (pContext->pLVars ? pContext->pLVars->offset : 0);
+}
+
+// 引数を登録し、引数の数を返す。
+static int resigter_params(FuncContext* pContext, const Node* pNode) {
+    int paramNum;
+
+    for (paramNum = 0; paramNum < sizeof(pNode->children) / sizeof(pNode->children[0]); ++paramNum) {
+        if (pNode->children[paramNum] == NULL) break;
+
+        if (find_lvar(pContext->pLVars, pNode->children[paramNum]) != NULL) {
+            error_at(pNode->children[paramNum]->pToken->user_input, pNode->children[paramNum]->pToken->str, "引数名が重複しています");
+        }
+
+        resigter_lvars(pContext, pNode->children[paramNum]);
+    }
+
+    return paramNum;
 }
 
 static void gen_left_expr(const Node* pNode, const FuncContext* pContext) {
@@ -205,10 +212,10 @@ static void gen_for_stmt(const Node* pNode, const FuncContext* pContext, int* pL
 
 static void gen_invoke_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount) {
     int i;
-    char funcName[MAX_FUNC_NAME] = { 0 };
+    char funcName[MAX_FUNC_NAME_LEN + 1] = { 0 };
 
-    if (MAX_FUNC_NAME <= pNode->pToken->len) {
-        error_at(pNode->pToken->user_input, pNode->pToken->str, "関数名が%d文字以上あります", MAX_FUNC_NAME);
+    if (MAX_FUNC_NAME_LEN <= pNode->pToken->len) {
+        error_at(pNode->pToken->user_input, pNode->pToken->str, "関数名が%d文字以上あります", MAX_FUNC_NAME_LEN);
     }
     memcpy(funcName, pNode->pToken->str, pNode->pToken->len);
 
@@ -361,17 +368,19 @@ static void gen_local_node(const Node* pNode, const FuncContext* pContext, int* 
 }
 
 static void gen_def_func(const Node* pNode, int* pLabelCount) {
+    int i;
     FuncContext context = { 0 };
-    char funcName[MAX_FUNC_NAME] = { 0 };
+    char funcName[MAX_FUNC_NAME_LEN + 1] = { 0 };
 
-    if (MAX_FUNC_NAME <= pNode->pToken->len) {
-        error_at(pNode->pToken->user_input, pNode->pToken->str, "関数名が%d文字以上あります", MAX_FUNC_NAME);
+    if (MAX_FUNC_NAME_LEN <= pNode->pToken->len) {
+        error_at(pNode->pToken->user_input, pNode->pToken->str, "関数名が%d文字以上あります", MAX_FUNC_NAME_LEN);
     }
     memcpy(funcName, pNode->pToken->str, pNode->pToken->len);
 
-    //TODO:pNode->childrenから引数を取得する
+    int paramNum = resigter_params(&context, pNode);
+    const LVar* pParamTop = context.pLVars;
 
-    const int stack_size = resigter_lvars(&context.pLVars, pNode);
+    const int stack_size = resigter_lvars(&context, pNode);
 
     printf("%s:\n", funcName);
 
@@ -380,6 +389,17 @@ static void gen_def_func(const Node* pNode, int* pLabelCount) {
     printf("  push rbp\n");
     printf("  mov rbp, rsp\n");
     printf("  sub rsp, %d\n", stack_size);
+
+    // 引数を対応するローカル変数に展開する
+    for (i = 0; i < paramNum; ++i) {
+        if (pParamTop == NULL) {
+            error("Internal Error. Param node is NULL.");
+        }
+        printf("  mov rax, rbp\n");
+        printf("  sub rax, %d\n", pParamTop->offset);
+        printf("  mov [rax], %s\n", PARAM_REG_NAME[paramNum - i - 1]);
+        pParamTop = pParamTop->next;
+    }
 
     // 各ノードの解析を行いアセンブリを順次出力する
     gen_local_node(pNode->lhs, &context, pLabelCount);

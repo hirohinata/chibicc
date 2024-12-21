@@ -314,7 +314,7 @@ static Node* def_func(Token** ppToken) {
         }
 
         Node* pParamNode = calloc(1, sizeof(Node));
-        pParamNode->kind = ND_PARAM;
+        pParamNode->kind = ND_LVAR;     // 引数もノード解釈上はローカル変数扱いとする
         pParamNode->pToken = pParamNameToken;
         pDefFuncNode->children[argCount++] = pParamNode;
     }

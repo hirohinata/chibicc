@@ -266,6 +266,9 @@ namespace TestProject
         {
             Assert.AreEqual(42, Compile("main() { return foo(); } foo() { return 42; }"));
             Assert.AreEqual(52, Compile("main() { return foo() + bar(); } foo() { return 42; } bar() { return 10; }"));
+            Assert.AreEqual(52, Compile("main() { return foo(10); } foo(a) { return a + 42; }"));
+            Assert.AreEqual(13, Compile("main() { return foo(2, 3); } foo(a, b) { return (a * 5) + b; }"));
+            Assert.AreEqual(32, Compile("main() { return foo(1, 2, 3, 4); } foo(a, b, c, d) { return (a * 5) + b - c + (d * 7); }"));
         }
     }
 }

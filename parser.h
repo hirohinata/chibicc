@@ -5,7 +5,6 @@ typedef enum {
     ND_NOP,         // 何もしない空要素
     ND_TOP_LEVEL,   // 関数定義外のトップレベル層
     ND_DEF_FUNC,    // 関数定義
-    ND_PARAM,       // 引数
     ND_BLOCK,       // ブロック
     ND_ADD,         // +
     ND_SUB,         // -
