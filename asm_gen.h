@@ -1,3 +1,3 @@
 #pragma once
 
-void gen(struct Node* pNode);
+void gen(const struct Node* pNode);

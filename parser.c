@@ -22,6 +22,7 @@ static Node* while_stmt(Token** ppToken);
 static Node* for_stmt(Token** ppToken);
 static Node* compound_stmt(Token** ppToken);
 static Node* stmt(Token** ppToken);
+static Node* def_func(Token** ppToken);
 static Node* program(Token** ppToken);
 
 static Node* new_node(const Token* pToken, NodeKind kind, Node* lhs, Node* rhs) {
@@ -286,12 +287,50 @@ static Node* stmt(Token** ppToken) {
 
     return node;
 }
+
+static Node* def_func(Token** ppToken) {
+    const Token* pFuncNameToken = consume_ident(ppToken);
+    if (pFuncNameToken == NULL) {
+        error_at((*ppToken)->user_input, (*ppToken)->str, "関数定義が必要です");
+    }
+
+    Node* pDefFuncNode = new_node(pFuncNameToken, ND_DEF_FUNC, NULL, NULL);
+
+    const int maxParam = sizeof(pDefFuncNode->children) / sizeof(pDefFuncNode->children[0]);
+    int argCount = 0;
+
+    expect(ppToken, "(");
+    while (!consume(ppToken, ")")) {
+        if (maxParam <= argCount) {
+            error_at((*ppToken)->user_input, (*ppToken)->str, "引数の数が%d個以上ある関数定義は非対応です", maxParam);
+        }
+        if (0 < argCount) {
+            expect(ppToken, ",");
+        }
+
+        const Token* pParamNameToken = consume_ident(ppToken);
+        if (pParamNameToken == NULL) {
+            error_at((*ppToken)->user_input, (*ppToken)->str, "引数名が必要です");
+        }
+
+        Node* pParamNode = calloc(1, sizeof(Node));
+        pParamNode->kind = ND_PARAM;
+        pParamNode->pToken = pParamNameToken;
+        pDefFuncNode->children[argCount++] = pParamNode;
+    }
+
+    expect(ppToken, "{");
+    pDefFuncNode->lhs = compound_stmt(ppToken);
+
+    return pDefFuncNode;
+}
+
 static Node* program(Token** ppToken) {
     Node* pRoot = NULL;
     Node* pCur = NULL;
 
     while (!at_eof(*ppToken)) {
-        Node* pNode = new_node(NULL, ND_BLOCK, stmt(ppToken), NULL);
+        Node* pNode = new_node(NULL, ND_TOP_LEVEL, def_func(ppToken), NULL);
 
         if (pRoot == NULL) {
             pRoot = pNode;

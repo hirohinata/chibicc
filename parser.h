@@ -3,6 +3,9 @@
 // 抽象構文木のノードの種類
 typedef enum {
     ND_NOP,         // 何もしない空要素
+    ND_TOP_LEVEL,   // 関数定義外のトップレベル層
+    ND_DEF_FUNC,    // 関数定義
+    ND_PARAM,       // 引数
     ND_BLOCK,       // ブロック
     ND_ADD,         // +
     ND_SUB,         // -
@@ -29,9 +32,9 @@ typedef struct Node Node;
 // 抽象構文木のノードの型
 struct Node {
     NodeKind kind;          // ノードの型
-    Node* lhs;              // 左辺
-    Node* rhs;              // 右辺
-    Node* children[4];      // その他の子ノード
+    const Node* lhs;        // 左辺
+    const Node* rhs;        // 右辺
+    const Node* children[4];// その他の子ノード
     const Token* pToken;    // 元トークン
 };
 
