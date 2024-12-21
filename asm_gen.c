@@ -12,22 +12,41 @@
 
 #define MAX_FUNC_NAME (64)
 
+typedef struct Param Param;
 typedef struct LVar LVar;
+typedef struct FuncContext FuncContext;
+
+// 引数の型
+struct Param {
+    Param* next;            // 次の引数かNULL
+    const char* name;       // 引数の名前
+    int len;                // 名前の長さ
+    const char* pszRegName; // 対応レジストリ名
+};
 
 // ローカル変数の型
 struct LVar {
-    LVar* next;         // 次の変数かNULL
-    const char* name;   // 変数の名前
-    int len;            // 名前の長さ
-    int offset;         // RBPからのオフセット
+    LVar* next;             // 次の変数かNULL
+    const char* name;       // 変数の名前
+    int len;                // 名前の長さ
+    int offset;             // RBPからのオフセット
 };
 
-static void gen_lval(const Node* pNode, const LVar* pLVars);
-static void gen_if_stmt(const Node* pNode, const LVar* pLVars, int* pLabelCount);
-static void gen_while_stmt(const Node* pNode, const LVar* pLVars, int* pLabelCount);
-static void gen_for_stmt(const Node* pNode, const LVar* pLVars, int* pLabelCount);
-static void gen_invoke_stmt(const Node* pNode, const LVar* pLVars, int* pLabelCount);
-static void gen_local_node(const Node* pNode, const LVar* pLVars, int* pLabelCount);
+// 関数定義内の環境
+struct FuncContext {
+    Param* pParams;         // 引数テーブル
+    LVar* pLVars;           // ローカル変数テーブル
+};
+
+static const char PARAM_REG_NAME[][4] = { "rcx", "rdx", "r8", "r9" };
+_STATIC_ASSERT(sizeof(PARAM_REG_NAME) / sizeof(PARAM_REG_NAME[0]) == sizeof(((Node*)0)->children) / sizeof(((Node*)0)->children[0]));
+
+static void gen_left_expr(const Node* pNode, const FuncContext* pContext);
+static void gen_if_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount);
+static void gen_while_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount);
+static void gen_for_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount);
+static void gen_invoke_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount);
+static void gen_local_node(const Node* pNode, const FuncContext* pContext, int* pLabelCount);
 static void gen_def_func(const Node* pNode, int* pLabelCount);
 static void gen_global_node(const Node* pNode, int* pLabelCount);
 
@@ -60,12 +79,12 @@ static int resigter_lvars(LVar** ppLVarTop, const Node* pNode) {
     return (*ppLVarTop ? (*ppLVarTop)->offset : 0);
 }
 
-static void gen_lval(const Node* pNode, const LVar* pLVars) {
+static void gen_left_expr(const Node* pNode, const FuncContext* pContext) {
     if (pNode->kind != ND_LVAR) {
-        error("代入の左辺値が変数ではありません");
+        error("代入の左辺値が変数でも引数ではありません");
     }
 
-    const LVar* pVar = find_lvar(pLVars, pNode);
+    const LVar* pVar = find_lvar(pContext->pLVars, pNode);
     if (pVar == NULL) {
         error("Internal Error. Local variable is not registered.");
     }
@@ -75,11 +94,11 @@ static void gen_lval(const Node* pNode, const LVar* pLVars) {
     printf("  push rax\n");
 }
 
-static void gen_if_stmt(const Node* pNode, const LVar* pLVars, int* pLabelCount) {
+static void gen_if_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount) {
     const int endLabelId = (*pLabelCount)++;
 
     // 条件式を評価
-    gen_local_node(pNode->children[0], pLVars, pLabelCount);
+    gen_local_node(pNode->children[0], pContext, pLabelCount);
     printf("  pop rax\n");
     printf("  cmp rax, 0\n");
 
@@ -90,32 +109,32 @@ static void gen_if_stmt(const Node* pNode, const LVar* pLVars, int* pLabelCount)
         printf("  je  .Lelse%04d\n", elseLabelId);
 
         // 条件式が真なら(elseラベルへジャンプしていないなら)if-branchを評価し、endラベルへジャンプ
-        gen_local_node(pNode->lhs, pLVars, pLabelCount);
+        gen_local_node(pNode->lhs, pContext, pLabelCount);
         printf("  jmp .Lend%04d\n", endLabelId);
 
         // elseラベルではelse-branchを実行（endラベルへは自然と落ちるためジャンプ不要）
         printf(".Lelse%04d:\n", elseLabelId);
-        gen_local_node(pNode->rhs, pLVars, pLabelCount);
+        gen_local_node(pNode->rhs, pContext, pLabelCount);
     }
     else {
         // 条件式が偽(0)ならendラベルへジャンプ
         printf("  je  .Lend%04d\n", endLabelId);
 
         // 条件式が真なら(elseラベルへジャンプしていないなら)if-branchを実行
-        gen_local_node(pNode->lhs, pLVars, pLabelCount);
+        gen_local_node(pNode->lhs, pContext, pLabelCount);
     }
 
     printf(".Lend%04d:\n", endLabelId);
 }
 
-static void gen_while_stmt(const Node* pNode, const LVar* pLVars, int* pLabelCount) {
+static void gen_while_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount) {
     const int beginLabelId = (*pLabelCount)++;
     const int endLabelId = (*pLabelCount)++;
 
     printf(".Lbegin%04d:\n", beginLabelId);
 
     // 条件式を評価
-    gen_local_node(pNode->lhs, pLVars, pLabelCount);
+    gen_local_node(pNode->lhs, pContext, pLabelCount);
     printf("  pop rax\n");
     printf("  cmp rax, 0\n");
 
@@ -123,7 +142,7 @@ static void gen_while_stmt(const Node* pNode, const LVar* pLVars, int* pLabelCou
     printf("  je  .Lend%04d\n", endLabelId);
 
     // ループ対象の文を実行
-    gen_local_node(pNode->rhs, pLVars, pLabelCount);
+    gen_local_node(pNode->rhs, pContext, pLabelCount);
 
     // ループするためにbeginラベルへ無条件ジャンプ
     printf("  jmp .Lbegin%04d\n", beginLabelId);
@@ -131,7 +150,7 @@ static void gen_while_stmt(const Node* pNode, const LVar* pLVars, int* pLabelCou
     printf(".Lend%04d:\n", endLabelId);
 }
 
-static void gen_for_stmt(const Node* pNode, const LVar* pLVars, int* pLabelCount) {
+static void gen_for_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount) {
     /*
   Aをコンパイルしたコード
 .LbeginXXX:
@@ -149,7 +168,7 @@ static void gen_for_stmt(const Node* pNode, const LVar* pLVars, int* pLabelCount
 
     // 初期化式を評価
     if (pNode->children[0]) {
-        gen_local_node(pNode->children[0], pLVars, pLabelCount);
+        gen_local_node(pNode->children[0], pContext, pLabelCount);
         // 式の評価結果としてスタックに一つの値が残っている
         // はずなので、スタックが溢れないようにポップしておく
         printf("  pop rax\n");
@@ -159,7 +178,7 @@ static void gen_for_stmt(const Node* pNode, const LVar* pLVars, int* pLabelCount
 
     // 条件式を評価
     if (pNode->children[1]) {
-        gen_local_node(pNode->children[1], pLVars, pLabelCount);
+        gen_local_node(pNode->children[1], pContext, pLabelCount);
         printf("  pop rax\n");
         printf("  cmp rax, 0\n");
 
@@ -168,11 +187,11 @@ static void gen_for_stmt(const Node* pNode, const LVar* pLVars, int* pLabelCount
     }
 
     // ループ対象の文を実行
-    gen_local_node(pNode->rhs, pLVars, pLabelCount);
+    gen_local_node(pNode->rhs, pContext, pLabelCount);
 
     // ループごとに評価する式を評価
     if (pNode->children[2]) {
-        gen_local_node(pNode->children[2], pLVars, pLabelCount);
+        gen_local_node(pNode->children[2], pContext, pLabelCount);
         // 式の評価結果としてスタックに一つの値が残っている
         // はずなので、スタックが溢れないようにポップしておく
         printf("  pop rax\n");
@@ -184,12 +203,9 @@ static void gen_for_stmt(const Node* pNode, const LVar* pLVars, int* pLabelCount
     printf(".Lend%04d:\n", endLabelId);
 }
 
-static void gen_invoke_stmt(const Node* pNode, const LVar* pLVars, int* pLabelCount) {
+static void gen_invoke_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount) {
     int i;
-    const char regNames[][4] = { "rcx", "rdx", "r8", "r9" };
     char funcName[MAX_FUNC_NAME] = { 0 };
-
-    _STATIC_ASSERT(sizeof(regNames) / sizeof(regNames[0]) == sizeof(pNode->children) / sizeof(pNode->children[0]));
 
     if (MAX_FUNC_NAME <= pNode->pToken->len) {
         error_at(pNode->pToken->user_input, pNode->pToken->str, "関数名が%d文字以上あります", MAX_FUNC_NAME);
@@ -200,8 +216,8 @@ static void gen_invoke_stmt(const Node* pNode, const LVar* pLVars, int* pLabelCo
     for (i = 0; i < sizeof(pNode->children) / sizeof(pNode->children[0]); ++i) {
         if (pNode->children[i] == NULL) break;
 
-        gen_local_node(pNode->children[i], pLVars, pLabelCount);
-        printf("  pop %s\n", regNames[i]);
+        gen_local_node(pNode->children[i], pContext, pLabelCount);
+        printf("  pop %s\n", PARAM_REG_NAME[i]);
     }
 
     // 呼び出し先でrax全体を利用するとは限らないのでゼロクリアを挟む
@@ -224,7 +240,7 @@ static void gen_invoke_stmt(const Node* pNode, const LVar* pLVars, int* pLabelCo
     printf("  push rax\n");
 }
 
-static void gen_local_node(const Node* pNode, const LVar* pLVars, int* pLabelCount) {
+static void gen_local_node(const Node* pNode, const FuncContext* pContext, int* pLabelCount) {
     if (!pNode) {
         error("Internal Error. Node is NULL.");
         return;
@@ -240,19 +256,19 @@ static void gen_local_node(const Node* pNode, const LVar* pLVars, int* pLabelCou
         return;
     case ND_LVAR:
         // 変数
-        gen_lval(pNode, pLVars);
+        gen_left_expr(pNode, pContext);
         printf("  pop rax\n");
         printf("  mov rax, [rax]\n");
         printf("  push rax\n");
         return;
     case ND_INVOKE:
         // 関数呼び出し
-        gen_invoke_stmt(pNode, pLVars, pLabelCount);
+        gen_invoke_stmt(pNode, pContext, pLabelCount);
         return;
     case ND_ASSIGN:
         // 代入演算
-        gen_lval(pNode->lhs, pLVars);
-        gen_local_node(pNode->rhs, pLVars, pLabelCount);
+        gen_left_expr(pNode->lhs, pContext);
+        gen_local_node(pNode->rhs, pContext, pLabelCount);
 
         printf("  pop rdi\n");
         printf("  pop rax\n");
@@ -261,14 +277,14 @@ static void gen_local_node(const Node* pNode, const LVar* pLVars, int* pLabelCou
         return;
     case ND_BLOCK:
         // ブロック
-        gen_local_node(pNode->lhs, pLVars, pLabelCount);
+        gen_local_node(pNode->lhs, pContext, pLabelCount);
 
         // 継続文があるならそれを評価
-        if (pNode->rhs) gen_local_node(pNode->rhs, pLVars, pLabelCount);
+        if (pNode->rhs) gen_local_node(pNode->rhs, pContext, pLabelCount);
         return;
     case ND_EXPR_STMT:
         // 式文
-        gen_local_node(pNode->lhs, pLVars, pLabelCount);
+        gen_local_node(pNode->lhs, pContext, pLabelCount);
 
         // 式の評価結果としてスタックに一つの値が残っている
         // はずなので、スタックが溢れないようにポップしておく
@@ -276,7 +292,7 @@ static void gen_local_node(const Node* pNode, const LVar* pLVars, int* pLabelCou
         return;
     case ND_RETURN:
         // return文
-        gen_local_node(pNode->lhs, pLVars, pLabelCount);
+        gen_local_node(pNode->lhs, pContext, pLabelCount);
         printf("  pop rax\n");
         printf("  mov rsp, rbp\n");
         printf("  pop rbp\n");
@@ -284,21 +300,21 @@ static void gen_local_node(const Node* pNode, const LVar* pLVars, int* pLabelCou
         return;
     case ND_IF:
         // if文
-        gen_if_stmt(pNode, pLVars, pLabelCount);
+        gen_if_stmt(pNode, pContext, pLabelCount);
         return;
     case ND_WHILE:
         // while文
-        gen_while_stmt(pNode, pLVars, pLabelCount);
+        gen_while_stmt(pNode, pContext, pLabelCount);
         return;
     case ND_FOR:
         // for文
-        gen_for_stmt(pNode, pLVars, pLabelCount);
+        gen_for_stmt(pNode, pContext, pLabelCount);
         return;
     }
 
     // 二項演算
-    gen_local_node(pNode->lhs, pLVars, pLabelCount);
-    gen_local_node(pNode->rhs, pLVars, pLabelCount);
+    gen_local_node(pNode->lhs, pContext, pLabelCount);
+    gen_local_node(pNode->rhs, pContext, pLabelCount);
     printf("  pop rdi\n");
     printf("  pop rax\n");
 
@@ -345,6 +361,7 @@ static void gen_local_node(const Node* pNode, const LVar* pLVars, int* pLabelCou
 }
 
 static void gen_def_func(const Node* pNode, int* pLabelCount) {
+    FuncContext context = { 0 };
     char funcName[MAX_FUNC_NAME] = { 0 };
 
     if (MAX_FUNC_NAME <= pNode->pToken->len) {
@@ -354,8 +371,7 @@ static void gen_def_func(const Node* pNode, int* pLabelCount) {
 
     //TODO:pNode->childrenから引数を取得する
 
-    LVar* pLVars = NULL;
-    int stack_size = resigter_lvars(&pLVars, pNode);
+    const int stack_size = resigter_lvars(&context.pLVars, pNode);
 
     printf("%s:\n", funcName);
 
@@ -366,7 +382,7 @@ static void gen_def_func(const Node* pNode, int* pLabelCount) {
     printf("  sub rsp, %d\n", stack_size);
 
     // 各ノードの解析を行いアセンブリを順次出力する
-    gen_local_node(pNode->lhs, pLVars, pLabelCount);
+    gen_local_node(pNode->lhs, &context, pLabelCount);
 
     // エピローグ
     // 最後の式の結果がRAXに残っているのでそれが返り値になる
