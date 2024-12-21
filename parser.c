@@ -90,6 +90,10 @@ static Node* unary(Token** ppToken) {
         return unary(ppToken);
     if (consume(ppToken, "-"))
         return new_node(pCurToken, ND_SUB, new_node_num(0), unary(ppToken));
+    if (consume(ppToken, "&"))
+        return new_node(pCurToken, ND_ADDR, unary(ppToken), NULL);
+    if (consume(ppToken, "*"))
+        return new_node(pCurToken, ND_DEREF, unary(ppToken), NULL);
     return primary(ppToken);
 }
 

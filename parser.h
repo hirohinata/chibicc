@@ -15,6 +15,8 @@ typedef enum {
     ND_LT,          // <
     ND_LE,          // <=
     ND_ASSIGN,      // =
+    ND_ADDR,        // &（アドレス）
+    ND_DEREF,       // *（関節参照）
     ND_INVOKE,      // 関数呼び出し
     ND_LVAR,        // ローカル変数
     ND_NUM,         // 整数

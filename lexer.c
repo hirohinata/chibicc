@@ -131,8 +131,9 @@ Token* tokenize(const char* user_input) {
         }
 
         // “ñ•¶š‚É‚È‚è“¾‚é‹L†
-        if (*p == '=' || *p == '!' || *p == '<' || *p == '>') {
-            if (*(p + 1) == '=') {
+        if (*p == '=' || *p == '!' || *p == '<' || *p == '>' || *p == '&') {
+            if (*(p + 1) == '=' ||
+                (*(p + 1) == *p && (*p == '&'))) {
                 cur = new_token(TK_RESERVED, cur, p, 2, user_input);
                 p += 2;
             }

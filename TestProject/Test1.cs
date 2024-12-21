@@ -270,5 +270,11 @@ namespace TestProject
             Assert.AreEqual(13, Compile("main() { return foo(2, 3); } foo(a, b) { return (a * 5) + b; }"));
             Assert.AreEqual(32, Compile("main() { return foo(1, 2, 3, 4); } foo(a, b, c, d) { return (a * 5) + b - c + (d * 7); }"));
         }
+
+        [TestMethod]
+        public void TestMethod18()
+        {
+            Assert.AreEqual(3, Compile("main() { x = 3; y = &x; return *y; }"));
+        }
     }
 }

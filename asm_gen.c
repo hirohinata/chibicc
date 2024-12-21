@@ -88,7 +88,7 @@ static int resigter_params(FuncContext* pContext, const Node* pNode) {
 
 static void gen_left_expr(const Node* pNode, const FuncContext* pContext) {
     if (pNode->kind != ND_LVAR) {
-        error("‘ã“ü‚Ì¶•Ó’l‚ª•Ï”‚Å‚àˆø”‚Å‚Í‚ ‚è‚Ü‚¹‚ñ");
+        error_at(pNode->pToken->user_input, pNode->pToken->str, "•Ï”‚Å‚àˆø”‚Å‚Í‚ ‚è‚Ü‚¹‚ñ");
     }
 
     const LVar* pVar = find_lvar(pContext->pLVars, pNode);
@@ -264,6 +264,17 @@ static void gen_local_node(const Node* pNode, const FuncContext* pContext, int* 
     case ND_LVAR:
         // •Ï”
         gen_left_expr(pNode, pContext);
+        printf("  pop rax\n");
+        printf("  mov rax, [rax]\n");
+        printf("  push rax\n");
+        return;
+    case ND_ADDR:
+        // ’P€&
+        gen_left_expr(pNode->lhs, pContext);
+        return;
+    case ND_DEREF:
+        // ’P€*
+        gen_local_node(pNode->lhs, pContext, pLabelCount);
         printf("  pop rax\n");
         printf("  mov rax, [rax]\n");
         printf("  push rax\n");
