@@ -22,6 +22,7 @@ static Node* while_stmt(Token** ppToken);
 static Node* for_stmt(Token** ppToken);
 static Node* compound_stmt(Token** ppToken);
 static Node* stmt(Token** ppToken);
+static Node* decl_var(Token** ppToken);
 static Node* def_func(Token** ppToken);
 static Node* program(Token** ppToken);
 
@@ -285,14 +286,43 @@ static Node* stmt(Token** ppToken) {
         node = compound_stmt(ppToken);
     }
     else {
-        node = new_node(NULL, ND_EXPR_STMT, expr(ppToken), NULL);
+        node = decl_var(ppToken);
+        if (node == NULL) {
+            node = new_node(NULL, ND_EXPR_STMT, expr(ppToken), NULL);
+        }
         expect(ppToken, ";");
     }
 
     return node;
 }
 
+static Node* decl_var(Token** ppToken) {
+    const Token* pTypeNameToken;
+    const Token* pVarNameToken;
+    Node* pVarNode;
+
+    pTypeNameToken = *ppToken;
+    if (!consume_reserved_word(ppToken, TK_INT)) {
+        return NULL;
+    }
+
+    pVarNameToken = consume_ident(ppToken);
+    if (pVarNameToken == NULL) {
+        error_at((*ppToken)->user_input, (*ppToken)->str, "識別子が必要です");
+    }
+
+    pVarNode = calloc(1, sizeof(Node));
+    pVarNode->kind = ND_LVAR;
+    pVarNode->pToken = pVarNameToken;
+
+    return new_node(pTypeNameToken, ND_DECL_VAR, pVarNode, NULL);
+}
+
 static Node* def_func(Token** ppToken) {
+    if (!consume_reserved_word(ppToken, TK_INT)) {
+        error_at((*ppToken)->user_input, (*ppToken)->str, "関数の戻り値の型名が必要です");
+    }
+
     const Token* pFuncNameToken = consume_ident(ppToken);
     if (pFuncNameToken == NULL) {
         error_at((*ppToken)->user_input, (*ppToken)->str, "関数定義が必要です");
@@ -312,14 +342,10 @@ static Node* def_func(Token** ppToken) {
             expect(ppToken, ",");
         }
 
-        const Token* pParamNameToken = consume_ident(ppToken);
-        if (pParamNameToken == NULL) {
-            error_at((*ppToken)->user_input, (*ppToken)->str, "引数名が必要です");
+        Node* pParamNode = decl_var(ppToken);
+        if (pParamNode == NULL) {
+            error_at((*ppToken)->user_input, (*ppToken)->str, "引数定義が必要です");
         }
-
-        Node* pParamNode = calloc(1, sizeof(Node));
-        pParamNode->kind = ND_LVAR;     // 引数もノード解釈上はローカル変数扱いとする
-        pParamNode->pToken = pParamNameToken;
         pDefFuncNode->children[argCount++] = pParamNode;
     }
 

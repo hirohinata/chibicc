@@ -116,165 +116,165 @@ namespace TestProject
         [TestMethod]
         public void TestMethod1()
         {
-            Assert.AreEqual(0, Compile("main() { 0; }"));
-            Assert.AreEqual(42, Compile("main() { 42; }"));
+            Assert.AreEqual(0, Compile("int main() { 0; }"));
+            Assert.AreEqual(42, Compile("int main() { 42; }"));
         }
 
         [TestMethod]
         public void TestMethod2()
         {
-            Assert.AreEqual(21, Compile("main() { 5+20-4; }"));
+            Assert.AreEqual(21, Compile("int main() { 5+20-4; }"));
         }
 
         [TestMethod]
         public void TestMethod3()
         {
-            Assert.AreEqual(41, Compile("main() {  12 + 34 - 5; }"));
+            Assert.AreEqual(41, Compile("int main() {  12 + 34 - 5; }"));
         }
 
         [TestMethod]
         public void TestMethod4()
         {
-            Assert.AreEqual("main() { 1+3++ }\r\n               ^ 数ではありません\r\n", CompileError("main() { 1+3++ }"));
-            Assert.AreEqual("main() { 1+3 2 }\r\n             ^ ';'ではありません\r\n", CompileError("main() { 1+3 2 }"));
-            Assert.AreEqual("main() { 1 + @ }\r\n             ^ トークナイズできません\r\n", CompileError("main() { 1 + @ }"));
+            Assert.AreEqual("int main() { 1+3++ }\r\n                   ^ 数ではありません\r\n", CompileError("int main() { 1+3++ }"));
+            Assert.AreEqual("int main() { 1+3 2 }\r\n                 ^ ';'ではありません\r\n", CompileError("int main() { 1+3 2 }"));
+            Assert.AreEqual("int main() { 1 + @ }\r\n                 ^ トークナイズできません\r\n", CompileError("int main() { 1 + @ }"));
         }
 
         [TestMethod]
         public void TestMethod5()
         {
-            Assert.AreEqual(7, Compile("main() { 1 + 2 * 3; }"));
-            Assert.AreEqual(9, Compile("main() { (1 + 2) * 3; }"));
-            Assert.AreEqual(14, Compile("main() { 1 * 2 + 3 * 4; }"));
-            Assert.AreEqual(1, Compile("main() { (1 + 2) / 3; }"));
+            Assert.AreEqual(7, Compile("int main() { 1 + 2 * 3; }"));
+            Assert.AreEqual(9, Compile("int main() { (1 + 2) * 3; }"));
+            Assert.AreEqual(14, Compile("int main() { 1 * 2 + 3 * 4; }"));
+            Assert.AreEqual(1, Compile("int main() { (1 + 2) / 3; }"));
 
-            Assert.AreEqual(47, Compile("main() { 5+6*7; }"));
-            Assert.AreEqual(15, Compile("main() { 5*(9-6); }"));
-            Assert.AreEqual(4, Compile("main() { (3+5)/2; }"));
+            Assert.AreEqual(47, Compile("int main() { 5+6*7; }"));
+            Assert.AreEqual(15, Compile("int main() { 5*(9-6); }"));
+            Assert.AreEqual(4, Compile("int main() { (3+5)/2; }"));
         }
 
         [TestMethod]
         public void TestMethod6()
         {
-            Assert.AreEqual("main() { 1+(3+2 }\r\n                ^ ')'ではありません\r\n", CompileError("main() { 1+(3+2 }"));
+            Assert.AreEqual("int main() { 1+(3+2 }\r\n                    ^ ')'ではありません\r\n", CompileError("int main() { 1+(3+2 }"));
         }
 
         [TestMethod]
         public void TestMethod7()
         {
-            Assert.AreEqual(10, Compile("main() { -10+20; }"));
-            Assert.AreEqual(17, Compile("main() { +-+12 - -34 - - - 5; }"));
+            Assert.AreEqual(10, Compile("int main() { -10+20; }"));
+            Assert.AreEqual(17, Compile("int main() { +-+12 - -34 - - - 5; }"));
         }
 
         [TestMethod]
         public void TestMethod8()
         {
-            Assert.IsTrue(Compile("main() { 10 == 4 + 2 * 3; }") != 0);
-            Assert.IsFalse(Compile("main() { 10 == (4 + 2) * 3; }") != 0);
+            Assert.IsTrue(Compile("int main() { 10 == 4 + 2 * 3; }") != 0);
+            Assert.IsFalse(Compile("int main() { 10 == (4 + 2) * 3; }") != 0);
 
-            Assert.IsTrue(Compile("main() { 10 == 10; }") != 0);
-            Assert.IsFalse(Compile("main() { 10 != 10; }") != 0);
-            Assert.IsFalse(Compile("main() { 10 <  10; }") != 0);
-            Assert.IsTrue(Compile("main() { 10 <= 10; }") != 0);
-            Assert.IsFalse(Compile("main() { 10 >  10; }") != 0);
-            Assert.IsTrue(Compile("main() { 10 >= 10; }") != 0);
+            Assert.IsTrue(Compile("int main() { 10 == 10; }") != 0);
+            Assert.IsFalse(Compile("int main() { 10 != 10; }") != 0);
+            Assert.IsFalse(Compile("int main() { 10 <  10; }") != 0);
+            Assert.IsTrue(Compile("int main() { 10 <= 10; }") != 0);
+            Assert.IsFalse(Compile("int main() { 10 >  10; }") != 0);
+            Assert.IsTrue(Compile("int main() { 10 >= 10; }") != 0);
 
-            Assert.IsFalse(Compile("main() { 10 == 11; }") != 0);
-            Assert.IsTrue(Compile("main() { 10 != 11; }") != 0);
-            Assert.IsTrue(Compile("main() { 10 <  11; }") != 0);
-            Assert.IsTrue(Compile("main() { 10 <= 11; }") != 0);
-            Assert.IsFalse(Compile("main() { 10 >  11; }") != 0);
-            Assert.IsFalse(Compile("main() { 10 >= 11; }") != 0);
+            Assert.IsFalse(Compile("int main() { 10 == 11; }") != 0);
+            Assert.IsTrue(Compile("int main() { 10 != 11; }") != 0);
+            Assert.IsTrue(Compile("int main() { 10 <  11; }") != 0);
+            Assert.IsTrue(Compile("int main() { 10 <= 11; }") != 0);
+            Assert.IsFalse(Compile("int main() { 10 >  11; }") != 0);
+            Assert.IsFalse(Compile("int main() { 10 >= 11; }") != 0);
 
-            Assert.IsFalse(Compile("main() { 10 == 9; }") != 0);
-            Assert.IsTrue(Compile("main() { 10 != 9; }") != 0);
-            Assert.IsFalse(Compile("main() { 10 <  9; }") != 0);
-            Assert.IsFalse(Compile("main() { 10 <= 9; }") != 0);
-            Assert.IsTrue(Compile("main() { 10 >  9; }") != 0);
-            Assert.IsTrue(Compile("main() { 10 >= 9; }") != 0);
+            Assert.IsFalse(Compile("int main() { 10 == 9; }") != 0);
+            Assert.IsTrue(Compile("int main() { 10 != 9; }") != 0);
+            Assert.IsFalse(Compile("int main() { 10 <  9; }") != 0);
+            Assert.IsFalse(Compile("int main() { 10 <= 9; }") != 0);
+            Assert.IsTrue(Compile("int main() { 10 >  9; }") != 0);
+            Assert.IsTrue(Compile("int main() { 10 >= 9; }") != 0);
         }
 
         [TestMethod]
         public void TestMethod9()
         {
-            Assert.AreEqual(3, Compile("main() { a = 3; }"));
-            Assert.AreEqual(22, Compile("main() { b = 5 * 6 - 8; }"));
-            Assert.AreEqual(14, Compile("main() { a = 3; b = 5 * 6 - 8; a + b / 2; }"));
+            Assert.AreEqual(3, Compile("int main() { int a; a = 3; }"));
+            Assert.AreEqual(22, Compile("int main() { int b; b = 5 * 6 - 8; }"));
+            Assert.AreEqual(14, Compile("int main() { int a; int b; a = 3; b = 5 * 6 - 8; a + b / 2; }"));
 
-            Assert.AreEqual(1, Compile("main() { z = 65535; (z - 1) / 2 - 32766; }"));
+            Assert.AreEqual(1, Compile("int main() { int z; z = 65535; (z - 1) / 2 - 32766; }"));
         }
 
         [TestMethod]
         public void TestMethod10()
         {
-            Assert.AreEqual(6, Compile("main() { foo = 1; bar = 2 + 3; foo + bar; }"));
-            Assert.AreEqual(6, Compile("main() { a = 1; aa = 2; aaa = 3; a + aa + aaa; }"));
+            Assert.AreEqual(6, Compile("int main() { int foo; int bar; foo = 1; bar = 2 + 3; foo + bar; }"));
+            Assert.AreEqual(6, Compile("int main() { int a; int aa; int aaa; a = 1; aa = 2; aaa = 3; a + aa + aaa; }"));
         }
 
         [TestMethod]
         public void TestMethod11()
         {
-            Assert.AreEqual(14, Compile("main() { a = 3; b = 5 * 6 - 8; return a + b / 2; }"));
-            Assert.AreEqual(5, Compile("main() { return 5; return 8; }"));
-            Assert.AreEqual(11, Compile("main() { returnx = 5; ret = 6; return returnx + ret; }"));
+            Assert.AreEqual(14, Compile("int main() { int a; int b; a = 3; b = 5 * 6 - 8; return a + b / 2; }"));
+            Assert.AreEqual(5, Compile("int main() { return 5; return 8; }"));
+            Assert.AreEqual(11, Compile("int main() { int returnx; int ret; returnx = 5; ret = 6; return returnx + ret; }"));
         }
 
         [TestMethod]
         public void TestMethod12()
         {
-            Assert.AreEqual(5, Compile("main() { a = 3; if (a == 3) a = 5; return a; }"));
-            Assert.AreEqual(4, Compile("main() { a = 4; if (a == 3) a = 5; return a; }"));
-            Assert.AreEqual(5, Compile("main() { a = 3; if (a == 3) a = 5; else a= 6; return a; }"));
-            Assert.AreEqual(6, Compile("main() { a = 4; if (a == 3) a = 5; else a= 6; return a; }"));
+            Assert.AreEqual(5, Compile("int main() { int a; a = 3; if (a == 3) a = 5; return a; }"));
+            Assert.AreEqual(4, Compile("int main() { int a; a = 4; if (a == 3) a = 5; return a; }"));
+            Assert.AreEqual(5, Compile("int main() { int a; a = 3; if (a == 3) a = 5; else a= 6; return a; }"));
+            Assert.AreEqual(6, Compile("int main() { int a; a = 4; if (a == 3) a = 5; else a= 6; return a; }"));
         }
 
         [TestMethod]
         public void TestMethod13()
         {
-            Assert.AreEqual(10, Compile("main() { a = 0; while (a < 10) a = a + 1; return a; }"));
-            Assert.AreEqual(15, Compile("main() { a = 15; while (a < 10) a = a + 1; return a; }"));
+            Assert.AreEqual(10, Compile("int main() { int a; a = 0; while (a < 10) a = a + 1; return a; }"));
+            Assert.AreEqual(15, Compile("int main() { int a; a = 15; while (a < 10) a = a + 1; return a; }"));
         }
 
         [TestMethod]
         public void TestMethod14()
         {
-            Assert.AreEqual(10, Compile("main() { a = 0; for (i = 0; i < 5; i = i + 1) a = a + i; return a; }"));
-            Assert.AreEqual(5, Compile("main() { a = 0; for (i = 1; a < 5;) a = a + i; return a; }"));
-            Assert.AreEqual(10, Compile("main() { a = 0; for (; a < 10;) a = a + 1; return a; }"));
+            Assert.AreEqual(10, Compile("int main() { int a; int i; a = 0; for (i = 0; i < 5; i = i + 1) a = a + i; return a; }"));
+            Assert.AreEqual(5, Compile("int main() { int a; int i; a = 0; for (i = 1; a < 5;) a = a + i; return a; }"));
+            Assert.AreEqual(10, Compile("int main() { int a; a = 0; for (; a < 10;) a = a + 1; return a; }"));
             //TODO:breakを実装していないため、条件式を省略したら無限ループになってしまいテストができない
         }
 
         [TestMethod]
         public void TestMethod15()
         {
-            Assert.AreEqual(4, Compile("main() { a = 1; b = 2; if (a < b) { a = 4; b = 5; } else { a = 6; b = 7; } return a; }"));
-            Assert.AreEqual(6, Compile("main() { a = 3; b = 2; if (a < b) { a = 4; b = 5; } else { a = 6; b = 7; } return a; }"));
-            Assert.AreEqual(8, Compile("main() { a = 8; {} {{}} return a; }"));
+            Assert.AreEqual(4, Compile("int main() { int a; int b; a = 1; b = 2; if (a < b) { a = 4; b = 5; } else { a = 6; b = 7; } return a; }"));
+            Assert.AreEqual(6, Compile("int main() { int a; int b; a = 3; b = 2; if (a < b) { a = 4; b = 5; } else { a = 6; b = 7; } return a; }"));
+            Assert.AreEqual(8, Compile("int main() { int a; a = 8; {} {{}} return a; }"));
         }
 
         [TestMethod]
         public void TestMethod16()
         {
-            Assert.AreEqual(42, Compile("main() { return foo(); }", "int foo() { return 42; }"));
-            Assert.AreEqual(52, Compile("main() { return foo(10); }", "int foo(int a) { return a + 42; }"));
-            Assert.AreEqual(13, Compile("main() { return foo(2, 3); }", "int foo(int a, int b) { return (a * 5) + b; }"));
-            Assert.AreEqual(32, Compile("main() { return foo(1, 2, 3, 4); }", "int foo(int a, int b, int c, int d) { return (a * 5) + b - c + (d * 7); }"));
+            Assert.AreEqual(42, Compile("int main() { return foo(); }", "int foo() { return 42; }"));
+            Assert.AreEqual(52, Compile("int main() { return foo(10); }", "int foo(int a) { return a + 42; }"));
+            Assert.AreEqual(13, Compile("int main() { return foo(2, 3); }", "int foo(int a, int b) { return (a * 5) + b; }"));
+            Assert.AreEqual(32, Compile("int main() { return foo(1, 2, 3, 4); }", "int foo(int a, int b, int c, int d) { return (a * 5) + b - c + (d * 7); }"));
         }
 
         [TestMethod]
         public void TestMethod17()
         {
-            Assert.AreEqual(42, Compile("main() { return foo(); } foo() { return 42; }"));
-            Assert.AreEqual(52, Compile("main() { return foo() + bar(); } foo() { return 42; } bar() { return 10; }"));
-            Assert.AreEqual(52, Compile("main() { return foo(10); } foo(a) { return a + 42; }"));
-            Assert.AreEqual(13, Compile("main() { return foo(2, 3); } foo(a, b) { return (a * 5) + b; }"));
-            Assert.AreEqual(32, Compile("main() { return foo(1, 2, 3, 4); } foo(a, b, c, d) { return (a * 5) + b - c + (d * 7); }"));
+            Assert.AreEqual(42, Compile("int main() { return foo(); } int foo() { return 42; }"));
+            Assert.AreEqual(52, Compile("int main() { return foo() + bar(); } int foo() { return 42; } int bar() { return 10; }"));
+            Assert.AreEqual(52, Compile("int main() { return foo(10); } int foo(int a) { return a + 42; }"));
+            Assert.AreEqual(13, Compile("int main() { return foo(2, 3); } int foo(int a, int b) { return (a * 5) + b; }"));
+            Assert.AreEqual(32, Compile("int main() { return foo(1, 2, 3, 4); } int foo(int a, int b, int c, int d) { return (a * 5) + b - c + (d * 7); }"));
         }
 
         [TestMethod]
         public void TestMethod18()
         {
-            Assert.AreEqual(3, Compile("main() { x = 3; y = &x; return *y; }"));
+            Assert.AreEqual(3, Compile("int main() { int x; int y; x = 3; y = &x; return *y; }"));
         }
     }
 }

@@ -52,19 +52,22 @@ static const LVar* find_lvar(const LVar* pLVarTop, const Node* pNode) {
 
 // 変数を登録し、総消費スタックサイズを返す。
 static int resigter_lvars(FuncContext* pContext, const Node* pNode) {
-    if (pNode->kind == ND_LVAR &&
-        find_lvar(pContext->pLVars, pNode) == NULL)
-    {
+    if (pNode->kind == ND_DECL_VAR) {
+        if (find_lvar(pContext->pLVars, pNode->lhs) != NULL) {
+            error_at(pNode->lhs->pToken->user_input, pNode->lhs->pToken->str, "ローカル変数名が重複しています");
+        }
+
         LVar* pVar = calloc(1, sizeof(LVar));
         pVar->next = pContext->pLVars;
-        pVar->name = pNode->pToken->str;
-        pVar->len = pNode->pToken->len;
+        pVar->name = pNode->lhs->pToken->str;
+        pVar->len = pNode->lhs->pToken->len;
         pVar->offset = (pContext->pLVars ? pContext->pLVars->offset : 0) + 8;
         pContext->pLVars = pVar;
     }
-
-    if (pNode->lhs) resigter_lvars(pContext, pNode->lhs);
-    if (pNode->rhs) resigter_lvars(pContext, pNode->rhs);
+    else {
+        if (pNode->lhs) resigter_lvars(pContext, pNode->lhs);
+        if (pNode->rhs) resigter_lvars(pContext, pNode->rhs);
+    }
 
     return (pContext->pLVars ? pContext->pLVars->offset : 0);
 }
@@ -88,12 +91,12 @@ static int resigter_params(FuncContext* pContext, const Node* pNode) {
 
 static void gen_left_expr(const Node* pNode, const FuncContext* pContext) {
     if (pNode->kind != ND_LVAR) {
-        error_at(pNode->pToken->user_input, pNode->pToken->str, "変数でも引数ではありません");
+        error_at(pNode->pToken->user_input, pNode->pToken->str, "変数でも引数でもありません");
     }
 
     const LVar* pVar = find_lvar(pContext->pLVars, pNode);
     if (pVar == NULL) {
-        error("Internal Error. Local variable is not registered.");
+        error_at(pNode->pToken->user_input, pNode->pToken->str, "未定義の変数です");
     }
 
     printf("  mov rax, rbp\n");
@@ -256,6 +259,9 @@ static void gen_local_node(const Node* pNode, const FuncContext* pContext, int* 
     switch (pNode->kind) {
     case ND_NOP:
         // 何もしない
+        return;
+    case ND_DECL_VAR:
+        // 変数宣言（事前に登録済み：初期化子対応するならここ）
         return;
     case ND_NUM:
         // 数値リテラル
