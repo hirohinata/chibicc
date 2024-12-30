@@ -6,6 +6,7 @@ typedef enum {
     ND_TOP_LEVEL,   // 関数定義外のトップレベル層
     ND_DEF_FUNC,    // 関数定義
     ND_DECL_VAR,    // 変数宣言
+    ND_TYPE,        // 型
     ND_BLOCK,       // ブロック
     ND_ADD,         // +
     ND_SUB,         // -

@@ -12,12 +12,19 @@
 
 #define MAX_FUNC_NAME_LEN (64)
 
+typedef struct Type Type;
 typedef struct LVar LVar;
 typedef struct FuncContext FuncContext;
+
+struct Type {
+    enum { INT, PTR } ty;
+    struct Type* ptr_to;
+};
 
 // ローカル変数の型
 struct LVar {
     LVar* next;             // 次の変数かNULL
+    Type type;              // 変数の型
     const char* name;       // 変数の名前
     int len;                // 名前の長さ
     int offset;             // RBPからのオフセット
@@ -50,17 +57,36 @@ static const LVar* find_lvar(const LVar* pLVarTop, const Node* pNode) {
     return NULL;
 }
 
+static Type parse_type(FuncContext* pContext, const Node* pNode) {
+    Type type;
+
+    if (pNode->kind != ND_TYPE) {
+        error_at(pNode->pToken->user_input, pNode->pToken->str, "型名が必要です");
+    }
+
+    switch (pNode->pToken->kind) {
+    case TK_INT:
+        type.ty = INT;
+        break;
+    default:
+        error_at(pNode->pToken->user_input, pNode->pToken->str, "未定義の型名です");
+    }
+
+    return type;
+}
+
 // 変数を登録し、総消費スタックサイズを返す。
 static int resigter_lvars(FuncContext* pContext, const Node* pNode) {
     if (pNode->kind == ND_DECL_VAR) {
-        if (find_lvar(pContext->pLVars, pNode->lhs) != NULL) {
-            error_at(pNode->lhs->pToken->user_input, pNode->lhs->pToken->str, "ローカル変数名が重複しています");
+        if (find_lvar(pContext->pLVars, pNode) != NULL) {
+            error_at(pNode->pToken->user_input, pNode->pToken->str, "ローカル変数名が重複しています");
         }
 
         LVar* pVar = calloc(1, sizeof(LVar));
         pVar->next = pContext->pLVars;
-        pVar->name = pNode->lhs->pToken->str;
-        pVar->len = pNode->lhs->pToken->len;
+        pVar->type = parse_type(pContext, pNode->lhs);
+        pVar->name = pNode->pToken->str;
+        pVar->len = pNode->pToken->len;
         pVar->offset = (pContext->pLVars ? pContext->pLVars->offset : 0) + 8;
         pContext->pLVars = pVar;
     }
@@ -260,6 +286,9 @@ static void gen_local_node(const Node* pNode, const FuncContext* pContext, int* 
     case ND_NOP:
         // 何もしない
         return;
+    case ND_TYPE:
+        // 型名（コードの出力はしない）
+        return;
     case ND_DECL_VAR:
         // 変数宣言（事前に登録済み：初期化子対応するならここ）
         return;
@@ -419,7 +448,7 @@ static void gen_def_func(const Node* pNode, int* pLabelCount) {
     }
 
     // 各ノードの解析を行いアセンブリを順次出力する
-    gen_local_node(pNode->lhs, &context, pLabelCount);
+    gen_local_node(pNode->rhs, &context, pLabelCount);
 
     // エピローグ
     // 最後の式の結果がRAXに残っているのでそれが返り値になる

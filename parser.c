@@ -24,6 +24,7 @@ static Node* compound_stmt(Token** ppToken);
 static Node* stmt(Token** ppToken);
 static Node* decl_var(Token** ppToken);
 static Node* def_func(Token** ppToken);
+static Node* type(Token** ppToken);
 static Node* program(Token** ppToken);
 
 static Node* new_node(const Token* pToken, NodeKind kind, Node* lhs, Node* rhs) {
@@ -297,12 +298,11 @@ static Node* stmt(Token** ppToken) {
 }
 
 static Node* decl_var(Token** ppToken) {
-    const Token* pTypeNameToken;
     const Token* pVarNameToken;
-    Node* pVarNode;
+    Node* pTypeNode;
 
-    pTypeNameToken = *ppToken;
-    if (!consume_reserved_word(ppToken, TK_INT)) {
+    pTypeNode = type(ppToken);
+    if (pTypeNode == NULL) {
         return NULL;
     }
 
@@ -311,15 +311,12 @@ static Node* decl_var(Token** ppToken) {
         error_at((*ppToken)->user_input, (*ppToken)->str, "識別子が必要です");
     }
 
-    pVarNode = calloc(1, sizeof(Node));
-    pVarNode->kind = ND_LVAR;
-    pVarNode->pToken = pVarNameToken;
-
-    return new_node(pTypeNameToken, ND_DECL_VAR, pVarNode, NULL);
+    return new_node(pVarNameToken, ND_DECL_VAR, pTypeNode, NULL);
 }
 
 static Node* def_func(Token** ppToken) {
-    if (!consume_reserved_word(ppToken, TK_INT)) {
+    Node* pTypeNode = type(ppToken);
+    if (pTypeNode == NULL) {
         error_at((*ppToken)->user_input, (*ppToken)->str, "関数の戻り値の型名が必要です");
     }
 
@@ -328,7 +325,7 @@ static Node* def_func(Token** ppToken) {
         error_at((*ppToken)->user_input, (*ppToken)->str, "関数定義が必要です");
     }
 
-    Node* pDefFuncNode = new_node(pFuncNameToken, ND_DEF_FUNC, NULL, NULL);
+    Node* pDefFuncNode = new_node(pFuncNameToken, ND_DEF_FUNC, pTypeNode, NULL);
 
     const int maxParam = sizeof(pDefFuncNode->children) / sizeof(pDefFuncNode->children[0]);
     int argCount = 0;
@@ -350,9 +347,19 @@ static Node* def_func(Token** ppToken) {
     }
 
     expect(ppToken, "{");
-    pDefFuncNode->lhs = compound_stmt(ppToken);
+    pDefFuncNode->rhs = compound_stmt(ppToken);
 
     return pDefFuncNode;
+}
+
+static Node* type(Token** ppToken) {
+    const Token* pTypeNameToken = *ppToken;
+
+    if (!consume_reserved_word(ppToken, TK_INT)) {
+        return NULL;
+    }
+
+    return new_node(pTypeNameToken, ND_TYPE, NULL, NULL);
 }
 
 static Node* program(Token** ppToken) {
