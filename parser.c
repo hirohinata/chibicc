@@ -353,13 +353,30 @@ static Node* def_func(Token** ppToken) {
 }
 
 static Node* type(Token** ppToken) {
+    Node* pTypeNode;
+    Node* pCurNode;
     const Token* pTypeNameToken = *ppToken;
 
     if (!consume_reserved_word(ppToken, TK_INT)) {
         return NULL;
     }
 
-    return new_node(pTypeNameToken, ND_TYPE, NULL, NULL);
+    pTypeNode = new_node(pTypeNameToken, ND_TYPE, NULL, NULL);
+    pCurNode = pTypeNode;
+
+    //NOTE:•’Ê‚Æ‚Í‹t•ûŒü‚Ì–Ø\‘¢BŒ^‚É‘Î‚·‚éCü‚à–Ø\‘¢‚Å‚ ‚é‚×‚«‚È‚Ì‚©H
+    for (;;) {
+        const Token* pToken = *ppToken;
+        if (consume(ppToken, "*")) {
+            pCurNode->rhs = new_node(pToken, ND_DEREF, NULL, NULL);
+            pCurNode = (Node*)pCurNode->rhs;
+        }
+        else {
+            break;
+        }
+    }
+
+    return pTypeNode;
 }
 
 static Node* program(Token** ppToken) {

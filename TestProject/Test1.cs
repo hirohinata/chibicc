@@ -274,7 +274,7 @@ namespace TestProject
         [TestMethod]
         public void TestMethod18()
         {
-            Assert.AreEqual(3, Compile("int main() { int x; int y; x = 3; y = &x; return *y; }"));
+            Assert.AreEqual(3, Compile("int main() { int x; int* y; x = 3; y = &x; return *y; }"));
         }
     }
 }
