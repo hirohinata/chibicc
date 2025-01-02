@@ -98,9 +98,9 @@ Token* tokenize(const char* user_input) {
         }
 
         // Ž¯•ÊŽq
-        if ('a' <= *p && *p <= 'z') {
+        if ('a' <= *p && *p <= 'z' || 'A' <= *p && *p <= 'Z') {
             const char* pEnd = p;
-            do { pEnd++; } while ('a' <= *pEnd && *pEnd <= 'z');
+            do { pEnd++; } while ('a' <= *pEnd && *pEnd <= 'z' || 'A' <= *pEnd && *pEnd <= 'Z' || '0' <= *pEnd && *pEnd <= '9' || *pEnd == '_');
 
             if ((int)(pEnd - p) == 6 && strncmp(p, "return", 6) == 0) {
                 cur = new_token(TK_RETURN, cur, p, (int)(pEnd - p), user_input);
