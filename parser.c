@@ -96,6 +96,8 @@ static Node* unary(Token** ppToken) {
         return new_node(pCurToken, ND_ADDR, unary(ppToken), NULL);
     if (consume(ppToken, "*"))
         return new_node(pCurToken, ND_DEREF, unary(ppToken), NULL);
+    if (consume_reserved_word(ppToken, TK_SIZEOF))
+        return new_node(pCurToken, ND_SIZEOF, unary(ppToken), NULL);
     return primary(ppToken);
 }
 

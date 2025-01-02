@@ -120,6 +120,9 @@ Token* tokenize(const char* user_input) {
             else if ((int)(pEnd - p) == 3 && strncmp(p, "int", 3) == 0) {
                 cur = new_token(TK_INT, cur, p, (int)(pEnd - p), user_input);
             }
+            else if ((int)(pEnd - p) == 6 && strncmp(p, "sizeof", 6) == 0) {
+                cur = new_token(TK_SIZEOF, cur, p, (int)(pEnd - p), user_input);
+            }
             else {
                 cur = new_token(TK_IDENT, cur, p, (int)(pEnd - p), user_input);
             }

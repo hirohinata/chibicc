@@ -1,3 +1,5 @@
+#include <windows.h>
+
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -17,11 +19,11 @@ typedef struct LVar LVar;
 typedef struct FuncContext FuncContext;
 
 struct Type {
-    enum { VOID, INT, PTR } ty;
+    enum { TY_VOID, TY_INT, TY_PTR } ty;
     const Type* ptr_to;
 };
-static const Type VOID_TYPE = { VOID };
-static const Type INT_TYPE = { INT };
+static const Type VOID_TYPE = { TY_VOID };
+static const Type INT_TYPE = { TY_INT };
 
 // ローカル変数の型
 struct LVar {
@@ -72,7 +74,7 @@ static Type* parse_type(FuncContext* pContext, const Node* pNode) {
 
     switch (pNode->pToken->kind) {
     case TK_INT:
-        pType->ty = INT;
+        pType->ty = TY_INT;
         break;
     default:
         error_at(pNode->pToken->user_input, pNode->pToken->str, "未定義の型名です");
@@ -82,7 +84,7 @@ static Type* parse_type(FuncContext* pContext, const Node* pNode) {
     while (pCurNode->rhs != NULL) {
         if (pCurNode->rhs->kind == ND_DEREF) {
             Type* pNewType = calloc(1, sizeof(Type));
-            pNewType->ty = PTR;
+            pNewType->ty = TY_PTR;
             pNewType->ptr_to = pType;
 
             pType = pNewType;
@@ -306,18 +308,18 @@ static const Type* gen_add_expr(const Node* pNode, const Type* pLhsType, const T
     const Type* pResultType = NULL;
 
     switch (pLhsType->ty) {
-    case INT:
+    case TY_INT:
         switch (pRhsType->ty) {
-        case INT:
+        case TY_INT:
             pResultType = &INT_TYPE;
             break;
-        case PTR:
+        case TY_PTR:
             //左辺値の整数値をポインタが指す先の型サイズ倍する
             switch (pRhsType->ptr_to->ty) {
-            case INT:
+            case TY_INT:
                 printf("  imul rax, 4\n");
                 break;
-            case PTR:
+            case TY_PTR:
                 printf("  imul rax, 8\n");
                 break;
             default:
@@ -329,15 +331,15 @@ static const Type* gen_add_expr(const Node* pNode, const Type* pLhsType, const T
             error("Internal Error. Invalid Type '%d'.", pRhsType->ty);
         }
         break;
-    case PTR:
+    case TY_PTR:
         switch (pRhsType->ty) {
-        case INT:
+        case TY_INT:
             //右辺値の整数値をポインタが指す先の型サイズ倍する
             switch (pLhsType->ptr_to->ty) {
-            case INT:
+            case TY_INT:
                 printf("  imul rdi, 4\n");
                 break;
-            case PTR:
+            case TY_PTR:
                 printf("  imul rdi, 8\n");
                 break;
             default:
@@ -345,7 +347,7 @@ static const Type* gen_add_expr(const Node* pNode, const Type* pLhsType, const T
             }
             pResultType = pLhsType;
             break;
-        case PTR:
+        case TY_PTR:
             error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタ同士の加算はできません");
         default:
             error("Internal Error. Invalid Type '%d'.", pRhsType->ty);
@@ -364,26 +366,26 @@ static const Type* gen_sub_expr(const Node* pNode, const Type* pLhsType, const T
     const Type* pResultType = NULL;
 
     switch (pLhsType->ty) {
-    case INT:
+    case TY_INT:
         switch (pRhsType->ty) {
-        case INT:
+        case TY_INT:
             pResultType = &INT_TYPE;
             break;
-        case PTR:
+        case TY_PTR:
             error_at(pNode->pToken->user_input, pNode->pToken->str, "整数値からポインタの減算はできません");
         default:
             error("Internal Error. Invalid Type '%d'.", pRhsType->ty);
         }
         break;
-    case PTR:
+    case TY_PTR:
         switch (pRhsType->ty) {
-        case INT:
+        case TY_INT:
             //右辺値の整数値をポインタが指す先の型サイズ倍する
             switch (pLhsType->ptr_to->ty) {
-            case INT:
+            case TY_INT:
                 printf("  imul rdi, 4\n");
                 break;
-            case PTR:
+            case TY_PTR:
                 printf("  imul rdi, 8\n");
                 break;
             default:
@@ -391,17 +393,17 @@ static const Type* gen_sub_expr(const Node* pNode, const Type* pLhsType, const T
             }
             pResultType = pLhsType;
             break;
-        case PTR:
+        case TY_PTR:
             //ポインタ同士の減算はptrdiff_t型になる
             if (pLhsType->ptr_to->ty != pRhsType->ptr_to->ty) {
                 error_at(pNode->pToken->user_input, pNode->pToken->str, "減算するポインタの型が一致していません");
             }
             printf("  sub rax, rdi\n");
             switch (pLhsType->ptr_to->ty) {
-            case INT:
+            case TY_INT:
                 printf("  sar rax, 2\n");   // 4Byte型 -> 4で除算 -> 2bitシフト
                 break;
-            case PTR:
+            case TY_PTR:
                 printf("  sar rax, 3\n");   // 8Byte型 -> 8で除算 -> 3bitシフト
                 break;
             default:
@@ -423,9 +425,9 @@ static const Type* gen_sub_expr(const Node* pNode, const Type* pLhsType, const T
 
 static const Type* gen_mul_expr(const Node* pNode, const Type* pLhsType, const Type* pRhsType) {
     switch (pLhsType->ty) {
-    case INT:
+    case TY_INT:
         break;
-    case PTR:
+    case TY_PTR:
         error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタの乗算はできません");
         break;
     default:
@@ -433,9 +435,9 @@ static const Type* gen_mul_expr(const Node* pNode, const Type* pLhsType, const T
     }
 
     switch (pRhsType->ty) {
-    case INT:
+    case TY_INT:
         break;
-    case PTR:
+    case TY_PTR:
         error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタの乗算はできません");
         break;
     default:
@@ -448,9 +450,9 @@ static const Type* gen_mul_expr(const Node* pNode, const Type* pLhsType, const T
 
 static const Type* gen_div_expr(const Node* pNode, const Type* pLhsType, const Type* pRhsType) {
     switch (pLhsType->ty) {
-    case INT:
+    case TY_INT:
         break;
-    case PTR:
+    case TY_PTR:
         error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタの除算はできません");
         break;
     default:
@@ -458,9 +460,9 @@ static const Type* gen_div_expr(const Node* pNode, const Type* pLhsType, const T
     }
 
     switch (pRhsType->ty) {
-    case INT:
+    case TY_INT:
         break;
-    case PTR:
+    case TY_PTR:
         error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタの除算はできません");
         break;
     default:
@@ -504,7 +506,7 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
         // 単項&
         {
             Type* pResultType = calloc(1, sizeof(Type));
-            pResultType->ty = PTR;
+            pResultType->ty = TY_PTR;
             pResultType->ptr_to = gen_left_expr(pNode->lhs, pContext);
             return pResultType;
         }
@@ -512,13 +514,41 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
         // 単項*
         {
             const Type* pResultType = gen_local_node(pNode->lhs, pContext, pLabelCount);
-            if (pResultType->ty != PTR) {
+            if (pResultType->ty != TY_PTR) {
                 error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタ型ではない値はデリファレンスできません");
             }
             printf("  pop rax\n");
             printf("  mov rax, [rax]\n");
             printf("  push rax\n");
             return pResultType->ptr_to;
+        }
+    case ND_SIZEOF:
+        // sizeof
+        {
+            // 一時的に標準出力を切ることで被演算子の評価を無効にする
+            FILE* backup_stdout = GetStdHandle(STD_OUTPUT_HANDLE);
+            FILE* hNull = CreateFileA("NUL", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+            SetStdHandle(STD_OUTPUT_HANDLE, hNull);
+
+            int size = 0;
+            const Type* pOperandType = gen_local_node(pNode->lhs, pContext, pLabelCount);
+            switch (pOperandType->ty) {
+            case TY_INT:
+                size = 4;
+                break;
+            case TY_PTR:
+                size = 8;
+                break;
+            default:
+                error("Internal Error. Invalid Type '%d'.", pOperandType->ty);
+            }
+
+            // 標準出力を元に戻す
+            SetStdHandle(STD_OUTPUT_HANDLE, backup_stdout);
+            CloseHandle(hNull);
+
+            printf("  push %d\n", size);
+            return &INT_TYPE;
         }
     case ND_INVOKE:
         // 関数呼び出し

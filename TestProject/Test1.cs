@@ -278,6 +278,17 @@ namespace TestProject
 
             Assert.AreEqual(5, Compile("int main() { int *p; int **pp1; int **pp2; pp1 = &p; pp2 = pp1 + 5; return pp2 - pp1; }"));
         }
+
+        [TestMethod]
+        public void TestMethod20()
+        {
+            Assert.AreEqual(4, Compile("int main() { return sizeof 3; }"));
+            Assert.AreEqual(4, Compile("int main() { return sizeof(3+2); }"));
+            Assert.AreEqual(4, Compile("int main() { int n; return sizeof n; }"));
+            Assert.AreEqual(8, Compile("int main() { int* p; return sizeof p; }"));
+            Assert.AreEqual(8, Compile("int main() { int* p; return sizeof (p - 1); }"));
+            Assert.AreEqual(4, Compile("int main() { int* p; int* q; return sizeof (p - q); }"));
+        }
     }
 
     [TestClass]
