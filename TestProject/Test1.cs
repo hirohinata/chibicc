@@ -3,10 +3,9 @@ using System.Diagnostics;
 
 namespace TestProject
 {
-    [TestClass]
-    public sealed class Test1
+    public class TestBase
     {
-        private static void CallCompiler(string arguments, out string asm)
+        protected static void CallCompiler(string arguments, out string asm)
         {
             ProcessStartInfo psInfo = new()
             {
@@ -26,7 +25,7 @@ namespace TestProject
             Assert.IsTrue(string.IsNullOrEmpty(error), error);
         }
 
-        private static void CallGcc(string asm, string? otherCode, out string exeFileName)
+        protected static void CallGcc(string asm, string? otherCode, out string exeFileName)
         {
             var tempPath = $"{Path.GetTempPath()}chibicc\\{DateTime.Now.ToString("yyMMdd_HHmmss.fffffff")}";
             Directory.CreateDirectory(tempPath);
@@ -74,7 +73,7 @@ namespace TestProject
             }
         }
 
-        private static void CallExe(string exeFileName, out int exitCode)
+        protected static void CallExe(string exeFileName, out int exitCode)
         {
             ProcessStartInfo psInfo = new()
             {
@@ -88,7 +87,7 @@ namespace TestProject
             exitCode = p?.ExitCode ?? -1;
         }
 
-        private static int Compile(string args, string? otherCode = null)
+        protected static int Compile(string args, string? otherCode = null)
         {
             CallCompiler(args, out var asm);
             CallGcc(asm, otherCode, out var exeFileName);
@@ -96,7 +95,7 @@ namespace TestProject
             return exitCode;
         }
 
-        private static string CompileError(string args)
+        protected static string CompileError(string args)
         {
             ProcessStartInfo psInfo = new()
             {
@@ -112,7 +111,11 @@ namespace TestProject
             p?.WaitForExit();
             return p?.StandardError.ReadToEnd() ?? string.Empty;
         }
+    }
 
+    [TestClass]
+    public sealed class Test1 : TestBase
+    {
         [TestMethod]
         public void TestMethod1()
         {
@@ -253,15 +256,6 @@ namespace TestProject
         }
 
         [TestMethod]
-        public void TestMethod16()
-        {
-            Assert.AreEqual(42, Compile("int main() { return foo(); }", "int foo() { return 42; }"));
-            Assert.AreEqual(52, Compile("int main() { return foo(10); }", "int foo(int a) { return a + 42; }"));
-            Assert.AreEqual(13, Compile("int main() { return foo(2, 3); }", "int foo(int a, int b) { return (a * 5) + b; }"));
-            Assert.AreEqual(32, Compile("int main() { return foo(1, 2, 3, 4); }", "int foo(int a, int b, int c, int d) { return (a * 5) + b - c + (d * 7); }"));
-        }
-
-        [TestMethod]
         public void TestMethod17()
         {
             Assert.AreEqual(42, Compile("int main() { return foo(); } int foo() { return 42; }"));
@@ -275,6 +269,38 @@ namespace TestProject
         public void TestMethod18()
         {
             Assert.AreEqual(3, Compile("int main() { int x; int* y; x = 3; y = &x; return *y; }"));
+        }
+
+        [TestMethod]
+        public void TestMethod19()
+        {
+            Assert.AreEqual(3, Compile("int main() { int *p; int *q; int n; p = &n; q = p + 3; return q - p; }"));
+
+            Assert.AreEqual(5, Compile("int main() { int *p; int **pp1; int **pp2; pp1 = &p; pp2 = pp1 + 5; return pp2 - pp1; }"));
+        }
+    }
+
+    [TestClass]
+    public sealed class UnstableTest : TestBase
+    {
+        [TestMethod]
+        public void TestMethod16()
+        {
+            Assert.AreEqual(42, Compile("int main() { return foo(); }", "int foo() { return 42; }"));
+            Assert.AreEqual(52, Compile("int main() { return foo(10); }", "int foo(int a) { return a + 42; }"));
+            Assert.AreEqual(13, Compile("int main() { return foo(2, 3); }", "int foo(int a, int b) { return (a * 5) + b; }"));
+            Assert.AreEqual(32, Compile("int main() { return foo(1, 2, 3, 4); }", "int foo(int a, int b, int c, int d) { return (a * 5) + b - c + (d * 7); }"));
+        }
+
+        [TestMethod]
+        public void TestMethod19()
+        {
+            Assert.AreEqual(1, Compile("int main() { int *p; alloc3(&p, 1, 2, 4); int *q; q = p + 0; return *q; }", "#include <stdlib.h>\r\nvoid alloc3(int** pp, int a, int b, int c) { *pp = malloc(4 * sizeof(int)); (*pp)[0] = a; (*pp)[1] = b; (*pp)[2] = c; }"));
+            Assert.AreEqual(2, Compile("int main() { int *p; alloc3(&p, 1, 2, 4); int *q; q = p + 1; return *q; }", "#include <stdlib.h>\r\nvoid alloc3(int** pp, int a, int b, int c) { *pp = malloc(4 * sizeof(int)); (*pp)[0] = a; (*pp)[1] = b; (*pp)[2] = c; }"));
+            Assert.AreEqual(4, Compile("int main() { int *p; alloc3(&p, 1, 2, 4); int *q; q = p + 2; return *q; }", "#include <stdlib.h>\r\nvoid alloc3(int** pp, int a, int b, int c) { *pp = malloc(4 * sizeof(int)); (*pp)[0] = a; (*pp)[1] = b; (*pp)[2] = c; }"));
+
+            Assert.AreEqual(2, Compile("int main() { int *p; alloc3(&p, 1, 2, 4); int *q; q = p + 2; int *r; r = q - 1; return *r; }", "#include <stdlib.h>\r\nvoid alloc3(int** pp, int a, int b, int c) { *pp = malloc(4 * sizeof(int)); (*pp)[0] = a; (*pp)[1] = b; (*pp)[2] = c; }"));
+            Assert.AreEqual(2, Compile("int main() { int *p; alloc3(&p, 1, 2, 4); int *q; q = 2 + p; int *r; r = q - 1; return *r; }", "#include <stdlib.h>\r\nvoid alloc3(int** pp, int a, int b, int c) { *pp = malloc(4 * sizeof(int)); (*pp)[0] = a; (*pp)[1] = b; (*pp)[2] = c; }"));
         }
     }
 }
