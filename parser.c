@@ -10,6 +10,7 @@
 #include "error.h"
 
 static Node* primary(Token** ppToken);
+static Node* postfix(Token** ppToken);
 static Node* unary(Token** ppToken);
 static Node* mul(Token** ppToken);
 static Node* add(Token** ppToken);
@@ -54,12 +55,32 @@ static Node* primary(Token** ppToken) {
         return node;
     }
 
-    // 次のトークンが識別子なら
+    // 次のトークンが識別子ならLVARノードを生成
     const Token* pIdentToken = consume_ident(ppToken);
     if (pIdentToken) {
-        // さらに次のトークンが"("なら関数呼び出し
+        Node* node = calloc(1, sizeof(Node));
+        node->kind = ND_LVAR;
+        node->pToken = pIdentToken;
+        return node;
+    }
+
+    // そうでなければ数値のはず
+    return new_node_num(expect_number(ppToken));
+}
+
+static Node* postfix(Token** ppToken) {
+    Node* pNode = primary(ppToken);
+
+    for (;;) {
+        const Token* pCurToken = *ppToken;
+
         if (consume(ppToken, "(")) {
-            Node* pInvokeNode = new_node(pIdentToken, ND_INVOKE, NULL, NULL);
+            //NOTE:現状、直接的な関数呼び出しにのみ対応している
+            if (pNode->kind != ND_LVAR) {
+                error_at(pNode->pToken->user_input, pNode->pToken->str, "非対応の関数呼び出し形式です");
+            }
+
+            Node* pInvokeNode = new_node(pNode->pToken, ND_INVOKE, NULL, NULL);
             const int maxParam = sizeof(pInvokeNode->children) / sizeof(pInvokeNode->children[0]);
             int argCount = 0;
             while (!consume(ppToken, ")")) {
@@ -71,18 +92,19 @@ static Node* primary(Token** ppToken) {
                 }
                 pInvokeNode->children[argCount++] = expr(ppToken);
             }
-            return pInvokeNode;
-        }
 
-        // そうでなければLVARノードを生成
-        Node* node = calloc(1, sizeof(Node));
-        node->kind = ND_LVAR;
-        node->pToken = pIdentToken;
-        return node;
+            pNode = pInvokeNode;
+        }
+        else if (consume(ppToken, "[")) {
+            pNode = new_node(pCurToken, ND_SUBSCRIPT, pNode, expr(ppToken));
+            expect(ppToken, "]");
+        }
+        else {
+            break;
+        }
     }
 
-    // そうでなければ数値のはず
-    return new_node_num(expect_number(ppToken));
+    return pNode;
 }
 
 static Node* unary(Token** ppToken) {
@@ -98,7 +120,7 @@ static Node* unary(Token** ppToken) {
         return new_node(pCurToken, ND_DEREF, unary(ppToken), NULL);
     if (consume_reserved_word(ppToken, TK_SIZEOF))
         return new_node(pCurToken, ND_SIZEOF, unary(ppToken), NULL);
-    return primary(ppToken);
+    return postfix(ppToken);
 }
 
 static Node* mul(Token** ppToken) {
@@ -311,6 +333,23 @@ static Node* decl_var(Token** ppToken) {
     pVarNameToken = consume_ident(ppToken);
     if (pVarNameToken == NULL) {
         error_at((*ppToken)->user_input, (*ppToken)->str, "識別子が必要です");
+    }
+
+    if (consume(ppToken, "[")) {
+        Node* pCurNode = pTypeNode;
+        while (pCurNode->rhs) pCurNode = (Node*)pCurNode->rhs;
+
+        //NOTE:普通とは逆方向の木構造。型に対する修飾も木構造であるべきなのか？
+        do {
+            const Token* pToken = *ppToken;
+            const int size = expect_number(ppToken);
+            if (size <= 0) {
+                error_at(pToken->user_input, pToken->str, "'%d' は配列のサイズとして不正です", size);
+            }
+            pCurNode->rhs = new_node_num(size);
+            pCurNode = (Node*)pCurNode->rhs;
+        } while (consume(ppToken, ","));
+        expect(ppToken, "]");
     }
 
     return new_node(pVarNameToken, ND_DECL_VAR, pTypeNode, NULL);

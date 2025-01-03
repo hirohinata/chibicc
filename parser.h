@@ -20,6 +20,7 @@ typedef enum {
     ND_ADDR,        // &（アドレス）
     ND_DEREF,       // *（関節参照）
     ND_SIZEOF,      // sizeof
+    ND_SUBSCRIPT,   // 配列添え字
     ND_INVOKE,      // 関数呼び出し
     ND_LVAR,        // ローカル変数
     ND_NUM,         // 整数

@@ -19,8 +19,9 @@ typedef struct LVar LVar;
 typedef struct FuncContext FuncContext;
 
 struct Type {
-    enum { TY_VOID, TY_INT, TY_PTR } ty;
+    enum { TY_VOID, TY_INT, TY_PTR, TY_ARRAY } ty;
     const Type* ptr_to;
+    size_t array_size;
 };
 static const Type VOID_TYPE = { TY_VOID };
 static const Type INT_TYPE = { TY_INT };
@@ -39,8 +40,17 @@ struct FuncContext {
     LVar* pLVars;           // ローカル変数テーブル（引数も展開する）
 };
 
-static const char PARAM_REG_NAME[][4] = { "rcx", "rdx", "r8", "r9" };
-_STATIC_ASSERT(sizeof(PARAM_REG_NAME) / sizeof(PARAM_REG_NAME[0]) == sizeof(((Node*)0)->children) / sizeof(((Node*)0)->children[0]));
+#define PARAM_REG_INDEX_64BIT  (3)
+#define PARAM_REG_INDEX_32BIT  (2)
+#define PARAM_REG_INDEX_16BIT  (1)
+#define PARAM_REG_INDEX_8BIT   (0)
+static const char PARAM_REG_NAME[][4][4] = {
+    {  "cl",  "dl", "r8b", "r9b" },
+    {  "cx",  "dx", "r8w", "r9w" },
+    { "ecx", "edx", "r8d", "r9d" },
+    { "rcx", "rdx", "r8" , "r9"  },
+};
+_STATIC_ASSERT(sizeof(PARAM_REG_NAME[0]) / sizeof(PARAM_REG_NAME[0][0]) == sizeof(((Node*)0)->children) / sizeof(((Node*)0)->children[0]));
 
 static const Type* gen_left_expr(const Node* pNode, const FuncContext* pContext);
 static void gen_if_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount);
@@ -65,6 +75,20 @@ static const LVar* find_lvar(const LVar* pLVarTop, const Node* pNode) {
     return NULL;
 }
 
+static size_t get_type_size(const Type* pType) {
+    switch (pType->ty) {
+    case TY_INT:
+        return 4;
+    case TY_PTR:
+        return 8;
+    case TY_ARRAY:
+        return pType->array_size * get_type_size(pType->ptr_to);
+    default:
+        error("Internal Error. Invalid Type '%d'.", pType->ty);
+        return 0;
+    }
+}
+
 static Type* parse_type(FuncContext* pContext, const Node* pNode) {
     Type* pType = calloc(1, sizeof(Type));
 
@@ -82,17 +106,23 @@ static Type* parse_type(FuncContext* pContext, const Node* pNode) {
 
     const Node* pCurNode = pNode;
     while (pCurNode->rhs != NULL) {
-        if (pCurNode->rhs->kind == ND_DEREF) {
-            Type* pNewType = calloc(1, sizeof(Type));
-            pNewType->ty = TY_PTR;
-            pNewType->ptr_to = pType;
+        Type* pNewType = calloc(1, sizeof(Type));
+        pNewType->ptr_to = pType;
 
-            pType = pNewType;
-            pCurNode = pCurNode->rhs;
-        }
-        else {
+        switch (pCurNode->rhs->kind) {
+        case ND_DEREF:
+            pNewType->ty = TY_PTR;
+            break;
+        case ND_NUM:
+            pNewType->ty = TY_ARRAY;
+            pNewType->array_size = pCurNode->rhs->pToken->val;
+            break;
+        default:
             error("Internal Error. Invalid NodeKind '%d'.", pNode->kind);
         }
+
+        pType = pNewType;
+        pCurNode = pCurNode->rhs;
     }
 
     return pType;
@@ -110,7 +140,7 @@ static int resigter_lvars(FuncContext* pContext, const Node* pNode) {
         pVar->pType = parse_type(pContext, pNode->lhs);
         pVar->name = pNode->pToken->str;
         pVar->len = pNode->pToken->len;
-        pVar->offset = (pContext->pLVars ? pContext->pLVars->offset : 0) + 8;
+        pVar->offset = (pContext->pLVars ? pContext->pLVars->offset : 0) + (int)get_type_size(pVar->pType);
         pContext->pLVars = pVar;
     }
     else {
@@ -278,7 +308,7 @@ static const Type* gen_invoke_expr(const Node* pNode, const FuncContext* pContex
         if (pNode->children[i] == NULL) break;
 
         gen_local_node(pNode->children[i], pContext, pLabelCount);
-        printf("  pop %s\n", PARAM_REG_NAME[i]);
+        printf("  pop %s\n", PARAM_REG_NAME[PARAM_REG_INDEX_64BIT][i]);
     }
 
     // 呼び出し先でrax全体を利用するとは限らないのでゼロクリアを挟む
@@ -315,16 +345,7 @@ static const Type* gen_add_expr(const Node* pNode, const Type* pLhsType, const T
             break;
         case TY_PTR:
             //左辺値の整数値をポインタが指す先の型サイズ倍する
-            switch (pRhsType->ptr_to->ty) {
-            case TY_INT:
-                printf("  imul rax, 4\n");
-                break;
-            case TY_PTR:
-                printf("  imul rax, 8\n");
-                break;
-            default:
-                error("Internal Error. Invalid Type '%d'.", pRhsType->ty);
-            }
+            printf("  imul rax, %zd\n", get_type_size(pRhsType->ptr_to));
             pResultType = pRhsType;
             break;
         default:
@@ -335,16 +356,7 @@ static const Type* gen_add_expr(const Node* pNode, const Type* pLhsType, const T
         switch (pRhsType->ty) {
         case TY_INT:
             //右辺値の整数値をポインタが指す先の型サイズ倍する
-            switch (pLhsType->ptr_to->ty) {
-            case TY_INT:
-                printf("  imul rdi, 4\n");
-                break;
-            case TY_PTR:
-                printf("  imul rdi, 8\n");
-                break;
-            default:
-                error("Internal Error. Invalid Type '%d'.", pRhsType->ty);
-            }
+            printf("  imul rdi, %zd\n", get_type_size(pLhsType->ptr_to));
             pResultType = pLhsType;
             break;
         case TY_PTR:
@@ -381,16 +393,7 @@ static const Type* gen_sub_expr(const Node* pNode, const Type* pLhsType, const T
         switch (pRhsType->ty) {
         case TY_INT:
             //右辺値の整数値をポインタが指す先の型サイズ倍する
-            switch (pLhsType->ptr_to->ty) {
-            case TY_INT:
-                printf("  imul rdi, 4\n");
-                break;
-            case TY_PTR:
-                printf("  imul rdi, 8\n");
-                break;
-            default:
-                error("Internal Error. Invalid Type '%d'.", pRhsType->ty);
-            }
+            printf("  imul rdi, %zd\n", get_type_size(pLhsType->ptr_to));
             pResultType = pLhsType;
             break;
         case TY_PTR:
@@ -399,16 +402,12 @@ static const Type* gen_sub_expr(const Node* pNode, const Type* pLhsType, const T
                 error_at(pNode->pToken->user_input, pNode->pToken->str, "減算するポインタの型が一致していません");
             }
             printf("  sub rax, rdi\n");
-            switch (pLhsType->ptr_to->ty) {
-            case TY_INT:
-                printf("  sar rax, 2\n");   // 4Byte型 -> 4で除算 -> 2bitシフト
-                break;
-            case TY_PTR:
-                printf("  sar rax, 3\n");   // 8Byte型 -> 8で除算 -> 3bitシフト
-                break;
-            default:
-                error("Internal Error. Invalid Type '%d'.", pRhsType->ty);
-            }
+
+            //ポインタが指す先の型サイズで除算することで、二つの配列要素の添字の差になる
+            printf("  mov rdi, %zd\n", get_type_size(pLhsType->ptr_to));
+            printf("  cqo\n");
+            printf("  idiv rdi\n");
+
             return &INT_TYPE;   // 減算してから後処理で値調整入るので、ポインタ同士の減算は共通処理にしない
         default:
             error("Internal Error. Invalid Type '%d'.", pRhsType->ty);
@@ -499,6 +498,16 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
             const Type* pResultType = gen_left_expr(pNode, pContext);
             printf("  pop rax\n");
             printf("  mov rax, [rax]\n");
+            switch (pResultType->ty) {
+            case TY_INT:
+                printf("  cdqe\n");
+                break;
+            case TY_PTR:
+            case TY_ARRAY:
+                break;
+            default:
+                error("Internal Error. Invalid Type '%d'.", pResultType->ty);
+            }
             printf("  push rax\n");
             return pResultType;
         }
@@ -530,39 +539,62 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
             FILE* hNull = CreateFileA("NUL", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
             SetStdHandle(STD_OUTPUT_HANDLE, hNull);
 
-            int size = 0;
-            const Type* pOperandType = gen_local_node(pNode->lhs, pContext, pLabelCount);
-            switch (pOperandType->ty) {
-            case TY_INT:
-                size = 4;
-                break;
-            case TY_PTR:
-                size = 8;
-                break;
-            default:
-                error("Internal Error. Invalid Type '%d'.", pOperandType->ty);
-            }
+            const size_t size = get_type_size(gen_local_node(pNode->lhs, pContext, pLabelCount));
 
             // 標準出力を元に戻す
             SetStdHandle(STD_OUTPUT_HANDLE, backup_stdout);
             CloseHandle(hNull);
 
-            printf("  push %d\n", size);
+            printf("  push %zd\n", size);
             return &INT_TYPE;
+        }
+    case ND_SUBSCRIPT:
+        // 配列添え字
+        {
+            const Type* pLhsType = gen_local_node(pNode->lhs, pContext, pLabelCount);
+            const Type* pRhsType = gen_local_node(pNode->rhs, pContext, pLabelCount);
+            if (pLhsType->ty != TY_ARRAY) {
+                error_at(pNode->lhs->pToken->user_input, pNode->lhs->pToken->str, "配列型ではない値は添え字指定できません");
+            }
+            if (pLhsType->ty != TY_INT) {
+                error_at(pNode->rhs->pToken->user_input, pNode->rhs->pToken->str, "配列添え字は整数型である必要があります");
+            }
+            printf("  pop rdi\n");
+            printf("  imul rdi, %zd\n", get_type_size(pLhsType->ptr_to));   //添え字を型サイズ倍して加算したら対象要素を指すポインタになる
+            printf("  pop rax\n");
+            printf("  add rax, rdi\n");
+            printf("  push rax\n");
+            return pLhsType->ptr_to;
         }
     case ND_INVOKE:
         // 関数呼び出し
         return gen_invoke_expr(pNode, pContext, pLabelCount);
     case ND_ASSIGN:
         // 代入演算
-        gen_left_expr(pNode->lhs, pContext);
-        gen_local_node(pNode->rhs, pContext, pLabelCount);
+        {
+            const Type* pLhsType = gen_left_expr(pNode->lhs, pContext);
+            gen_local_node(pNode->rhs, pContext, pLabelCount);
 
-        printf("  pop rdi\n");
-        printf("  pop rax\n");
-        printf("  mov [rax], rdi\n");
-        printf("  push rdi\n");
-        return &VOID_TYPE;
+            switch (pLhsType->ty) {
+            case TY_INT:
+                printf("  pop rax\n");
+                printf("  cdqe\n");
+                printf("  mov rdi, rax\n");
+                printf("  pop rax\n");
+                printf("  mov [rax], edi\n");
+                break;
+            case TY_PTR:
+            case TY_ARRAY:
+                printf("  pop rdi\n");
+                printf("  pop rax\n");
+                printf("  mov [rax], rdi\n");
+                break;
+            default:
+                error("Internal Error. Invalid Type '%d'.", pLhsType->ty);
+            }
+            printf("  push rdi\n");
+            return pLhsType;
+        }
     case ND_BLOCK:
         // ブロック
         gen_local_node(pNode->lhs, pContext, pLabelCount);
@@ -682,7 +714,17 @@ static void gen_def_func(const Node* pNode, int* pLabelCount) {
         }
         printf("  mov rax, rbp\n");
         printf("  sub rax, %d\n", pParamTop->offset);
-        printf("  mov [rax], %s\n", PARAM_REG_NAME[paramNum - i - 1]);
+        switch (pParamTop->pType->ty) {
+        case TY_INT:
+            printf("  mov [rax], %s\n", PARAM_REG_NAME[PARAM_REG_INDEX_32BIT][paramNum - i - 1]);
+            break;
+        case TY_PTR:
+        case TY_ARRAY:
+            printf("  mov [rax], %s\n", PARAM_REG_NAME[PARAM_REG_INDEX_64BIT][paramNum - i - 1]);
+            break;
+        default:
+            error("Internal Error. Invalid Type '%d'.", pParamTop->pType->ty);
+        }
         pParamTop = pParamTop->next;
     }
 

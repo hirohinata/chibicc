@@ -289,6 +289,13 @@ namespace TestProject
             Assert.AreEqual(8, Compile("int main() { int* p; return sizeof (p - 1); }"));
             Assert.AreEqual(4, Compile("int main() { int* p; int* q; return sizeof (p - q); }"));
         }
+
+        [TestMethod]
+        public void TestMethod21()
+        {
+            Assert.AreEqual(40, Compile("int main() { int a[10]; return sizeof(a); }"));
+            Assert.AreEqual(80, Compile("int main() { int* a[10]; return sizeof(a); }"));
+        }
     }
 
     [TestClass]
