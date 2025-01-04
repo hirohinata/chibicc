@@ -22,6 +22,7 @@ struct Type {
     enum { TY_VOID, TY_INT, TY_PTR, TY_ARRAY } ty;
     const Type* ptr_to;
     size_t array_size;
+    bool is_lvalue;
 };
 static const Type VOID_TYPE = { TY_VOID };
 static const Type INT_TYPE = { TY_INT };
@@ -52,7 +53,7 @@ static const char PARAM_REG_NAME[][4][4] = {
 };
 _STATIC_ASSERT(sizeof(PARAM_REG_NAME[0]) / sizeof(PARAM_REG_NAME[0][0]) == sizeof(((Node*)0)->children) / sizeof(((Node*)0)->children[0]));
 
-static const Type* gen_left_expr(const Node* pNode, const FuncContext* pContext);
+static const Type* gen_left_expr(const Node* pNode, const FuncContext* pContext, int* pLabelCount);
 static void gen_if_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount);
 static void gen_while_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount);
 static void gen_for_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount);
@@ -138,6 +139,7 @@ static int resigter_lvars(FuncContext* pContext, const Node* pNode) {
         LVar* pVar = calloc(1, sizeof(LVar));
         pVar->next = pContext->pLVars;
         pVar->pType = parse_type(pContext, pNode->lhs);
+        pVar->pType->is_lvalue = true;
         pVar->name = pNode->pToken->str;
         pVar->len = pNode->pToken->len;
         pVar->offset = (pContext->pLVars ? pContext->pLVars->offset : 0) + (int)get_type_size(pVar->pType);
@@ -168,21 +170,44 @@ static int resigter_params(FuncContext* pContext, const Node* pNode) {
     return paramNum;
 }
 
-static const Type* gen_left_expr(const Node* pNode, const FuncContext* pContext) {
-    if (pNode->kind != ND_LVAR) {
-        error_at(pNode->pToken->user_input, pNode->pToken->str, "変数でも引数でもありません");
+static const Type* gen_left_expr(const Node* pNode, const FuncContext* pContext, int* pLabelCount) {
+    if (pNode->kind == ND_LVAR) {
+        const LVar* pVar = find_lvar(pContext->pLVars, pNode);
+        if (pVar == NULL) {
+            error_at(pNode->pToken->user_input, pNode->pToken->str, "未定義の変数です");
+        }
+
+        printf("  mov rax, rbp\n");
+        printf("  sub rax, %d\n", pVar->offset);
+        printf("  push rax\n");
+
+        return pVar->pType;
     }
+    else if (pNode->kind == ND_DEREF) {
+        // 単項*
+        const Type* pType = gen_local_node(pNode->lhs, pContext, pLabelCount);
+        if (pType->ty != TY_PTR) {
+            error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタ型ではない値はデリファレンスできません");
+        }
 
-    const LVar* pVar = find_lvar(pContext->pLVars, pNode);
-    if (pVar == NULL) {
-        error_at(pNode->pToken->user_input, pNode->pToken->str, "未定義の変数です");
+        if (pType->ptr_to->is_lvalue) {
+            return pType->ptr_to;
+        }
+        else {
+            Type* pResultType = calloc(1, sizeof(Type));
+            memcpy(pResultType, pType->ptr_to, sizeof(Type));
+            pResultType->is_lvalue = true;
+            return pResultType;
+        }
     }
-
-    printf("  mov rax, rbp\n");
-    printf("  sub rax, %d\n", pVar->offset);
-    printf("  push rax\n");
-
-    return pVar->pType;
+    else {
+        const Token* pCurToken = pNode->pToken;
+        const Type* pType = gen_local_node(pNode, pContext, pLabelCount);
+        if (!pType->is_lvalue) {
+            error_at(pCurToken->user_input, pCurToken->str, "無効な左辺値です");
+        }
+        return pType;
+    }
 }
 
 static void gen_if_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount) {
@@ -495,10 +520,10 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
     case ND_LVAR:
         // 変数
         {
-            const Type* pResultType = gen_left_expr(pNode, pContext);
+            const Type* pType = gen_left_expr(pNode, pContext, pLabelCount);
             printf("  pop rax\n");
             printf("  mov rax, [rax]\n");
-            switch (pResultType->ty) {
+            switch (pType->ty) {
             case TY_INT:
                 printf("  cdqe\n");
                 break;
@@ -506,9 +531,13 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
             case TY_ARRAY:
                 break;
             default:
-                error("Internal Error. Invalid Type '%d'.", pResultType->ty);
+                error("Internal Error. Invalid Type '%d'.", pType->ty);
             }
             printf("  push rax\n");
+
+            Type* pResultType = calloc(1, sizeof(Type));
+            memcpy(pResultType, pType, sizeof(Type));
+            pResultType->is_lvalue = false;
             return pResultType;
         }
     case ND_ADDR:
@@ -516,7 +545,7 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
         {
             Type* pResultType = calloc(1, sizeof(Type));
             pResultType->ty = TY_PTR;
-            pResultType->ptr_to = gen_left_expr(pNode->lhs, pContext);
+            pResultType->ptr_to = gen_left_expr(pNode->lhs, pContext, pLabelCount);
             return pResultType;
         }
     case ND_DEREF:
@@ -572,8 +601,8 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
     case ND_ASSIGN:
         // 代入演算
         {
-            const Type* pLhsType = gen_left_expr(pNode->lhs, pContext);
-            gen_local_node(pNode->rhs, pContext, pLabelCount);
+            const Type* pLhsType = gen_left_expr(pNode->lhs, pContext, pLabelCount);
+            const Type* pRhsType = gen_local_node(pNode->rhs, pContext, pLabelCount);
 
             switch (pLhsType->ty) {
             case TY_INT:
@@ -593,7 +622,7 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
                 error("Internal Error. Invalid Type '%d'.", pLhsType->ty);
             }
             printf("  push rdi\n");
-            return pLhsType;
+            return pRhsType;
         }
     case ND_BLOCK:
         // ブロック
