@@ -186,7 +186,7 @@ static const Type* gen_left_expr(const Node* pNode, const FuncContext* pContext,
     else if (pNode->kind == ND_DEREF) {
         // 単項*
         const Type* pType = gen_local_node(pNode->lhs, pContext, pLabelCount);
-        if (pType->ty != TY_PTR) {
+        if (pType->ty != TY_PTR && pType->ty != TY_ARRAY) {
             error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタ型ではない値はデリファレンスできません");
         }
 
@@ -369,6 +369,7 @@ static const Type* gen_add_expr(const Node* pNode, const Type* pLhsType, const T
             pResultType = &INT_TYPE;
             break;
         case TY_PTR:
+        case TY_ARRAY:
             //左辺値の整数値をポインタが指す先の型サイズ倍する
             printf("  imul rax, %zd\n", get_type_size(pRhsType->ptr_to));
             pResultType = pRhsType;
@@ -378,6 +379,7 @@ static const Type* gen_add_expr(const Node* pNode, const Type* pLhsType, const T
         }
         break;
     case TY_PTR:
+    case TY_ARRAY:
         switch (pRhsType->ty) {
         case TY_INT:
             //右辺値の整数値をポインタが指す先の型サイズ倍する
@@ -385,6 +387,7 @@ static const Type* gen_add_expr(const Node* pNode, const Type* pLhsType, const T
             pResultType = pLhsType;
             break;
         case TY_PTR:
+        case TY_ARRAY:
             error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタ同士の加算はできません");
         default:
             error("Internal Error. Invalid Type '%d'.", pRhsType->ty);
@@ -409,12 +412,14 @@ static const Type* gen_sub_expr(const Node* pNode, const Type* pLhsType, const T
             pResultType = &INT_TYPE;
             break;
         case TY_PTR:
+        case TY_ARRAY:
             error_at(pNode->pToken->user_input, pNode->pToken->str, "整数値からポインタの減算はできません");
         default:
             error("Internal Error. Invalid Type '%d'.", pRhsType->ty);
         }
         break;
     case TY_PTR:
+    case TY_ARRAY:
         switch (pRhsType->ty) {
         case TY_INT:
             //右辺値の整数値をポインタが指す先の型サイズ倍する
@@ -422,6 +427,7 @@ static const Type* gen_sub_expr(const Node* pNode, const Type* pLhsType, const T
             pResultType = pLhsType;
             break;
         case TY_PTR:
+        case TY_ARRAY:
             //ポインタ同士の減算はptrdiff_t型になる
             if (pLhsType->ptr_to->ty != pRhsType->ptr_to->ty) {
                 error_at(pNode->pToken->user_input, pNode->pToken->str, "減算するポインタの型が一致していません");
@@ -452,6 +458,7 @@ static const Type* gen_mul_expr(const Node* pNode, const Type* pLhsType, const T
     case TY_INT:
         break;
     case TY_PTR:
+    case TY_ARRAY:
         error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタの乗算はできません");
         break;
     default:
@@ -462,6 +469,7 @@ static const Type* gen_mul_expr(const Node* pNode, const Type* pLhsType, const T
     case TY_INT:
         break;
     case TY_PTR:
+    case TY_ARRAY:
         error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタの乗算はできません");
         break;
     default:
@@ -477,6 +485,7 @@ static const Type* gen_div_expr(const Node* pNode, const Type* pLhsType, const T
     case TY_INT:
         break;
     case TY_PTR:
+    case TY_ARRAY:
         error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタの除算はできません");
         break;
     default:
@@ -487,6 +496,7 @@ static const Type* gen_div_expr(const Node* pNode, const Type* pLhsType, const T
     case TY_INT:
         break;
     case TY_PTR:
+    case TY_ARRAY:
         error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタの除算はできません");
         break;
     default:
@@ -522,13 +532,17 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
         {
             const Type* pType = gen_left_expr(pNode, pContext, pLabelCount);
             printf("  pop rax\n");
-            printf("  mov rax, [rax]\n");
             switch (pType->ty) {
             case TY_INT:
+                printf("  mov rax, [rax]\n");
                 printf("  cdqe\n");
                 break;
             case TY_PTR:
+                printf("  mov rax, [rax]\n");
+                break;
             case TY_ARRAY:
+                //ポインタ型はその指し示す先にある値を取り出すことで評価となるが、配列型はその指し示す先にある値は[0]の要素そのもの
+                //raxに格納されている値は配列型を指し示すポインタであるため、何もしないことで配列型変数の評価となる
                 break;
             default:
                 error("Internal Error. Invalid Type '%d'.", pType->ty);
@@ -552,7 +566,7 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
         // 単項*
         {
             const Type* pResultType = gen_local_node(pNode->lhs, pContext, pLabelCount);
-            if (pResultType->ty != TY_PTR) {
+            if (pResultType->ty != TY_PTR && pResultType->ty != TY_ARRAY) {
                 error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタ型ではない値はデリファレンスできません");
             }
             printf("  pop rax\n");
@@ -576,24 +590,6 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
 
             printf("  push %zd\n", size);
             return &INT_TYPE;
-        }
-    case ND_SUBSCRIPT:
-        // 配列添え字
-        {
-            const Type* pLhsType = gen_local_node(pNode->lhs, pContext, pLabelCount);
-            const Type* pRhsType = gen_local_node(pNode->rhs, pContext, pLabelCount);
-            if (pLhsType->ty != TY_ARRAY) {
-                error_at(pNode->lhs->pToken->user_input, pNode->lhs->pToken->str, "配列型ではない値は添え字指定できません");
-            }
-            if (pLhsType->ty != TY_INT) {
-                error_at(pNode->rhs->pToken->user_input, pNode->rhs->pToken->str, "配列添え字は整数型である必要があります");
-            }
-            printf("  pop rdi\n");
-            printf("  imul rdi, %zd\n", get_type_size(pLhsType->ptr_to));   //添え字を型サイズ倍して加算したら対象要素を指すポインタになる
-            printf("  pop rax\n");
-            printf("  add rax, rdi\n");
-            printf("  push rax\n");
-            return pLhsType->ptr_to;
         }
     case ND_INVOKE:
         // 関数呼び出し

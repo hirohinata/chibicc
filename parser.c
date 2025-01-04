@@ -96,7 +96,8 @@ static Node* postfix(Token** ppToken) {
             pNode = pInvokeNode;
         }
         else if (consume(ppToken, "[")) {
-            pNode = new_node(pCurToken, ND_SUBSCRIPT, pNode, expr(ppToken));
+            pNode = new_node(pCurToken, ND_ADD, pNode, expr(ppToken));
+            pNode = new_node(pCurToken, ND_DEREF, pNode, NULL);
             expect(ppToken, "]");
         }
         else {

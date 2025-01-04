@@ -301,6 +301,15 @@ namespace TestProject
         public void TestMethod22()
         {
             Assert.AreEqual(21, Compile("int main() { int a; int* b; b = &a; *b = 21; return a; }"));
+            Assert.AreEqual(23, Compile("int main() { int a[10]; a[1] = 23; return a[1]; }"));
+            Assert.AreEqual(45, Compile("int main() { int a[10]; int* b; b = a; b = b + 3; *b = 45; return a[3]; }"));
+            Assert.AreEqual(56, Compile("int main() { int a[10]; int* b; b = &a[1]; b = b + 3; *b = 56; return a[4]; }"));
+
+            Assert.AreEqual(1, Compile("int main() { int a[10]; *a = 1; return a[0]; }"));
+            Assert.AreEqual(2, Compile("int main() { int a[10]; *(a + 1) = 2; return a[1]; }"));
+            Assert.AreEqual(3, Compile("int main() { int a[10]; *a = 1; *(a + 1) = 2; int* p; p = a; return *p + *(p + 1); }"));
+
+            Assert.IsTrue(Compile("int main() { int a[10]; int* b; int* c; b = a; c = &a;return b == c; }") != 0);
         }
     }
 
