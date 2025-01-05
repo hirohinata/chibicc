@@ -21,7 +21,7 @@ typedef enum {
     ND_DEREF,       // *（関節参照）
     ND_SIZEOF,      // sizeof
     ND_INVOKE,      // 関数呼び出し
-    ND_LVAR,        // ローカル変数
+    ND_VAR,         // 変数
     ND_NUM,         // 整数
     ND_EXPR_STMT,   // 式文
     ND_RETURN,      // return文

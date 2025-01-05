@@ -311,6 +311,16 @@ namespace TestProject
 
             Assert.IsTrue(Compile("int main() { int a[10]; int* b; int* c; b = a; c = &a;return b == c; }") != 0);
         }
+
+        [TestMethod]
+        public void TestMethod23()
+        {
+            Assert.AreEqual(0, Compile("int g; int main() { return g; }"));
+            Assert.AreEqual(3, Compile("int g; int main() { g = 3; return g; }"));
+            Assert.AreEqual(5, Compile("int g; int f() { g = 5; return 0; } int main() { g = 7; f(); return g; }"));
+            Assert.AreEqual(7, Compile("int g; int f() { g = 5; return 0; } int main() { int g; g = 7; f(); return g; }"));
+            Assert.AreEqual(9, Compile("int g[3]; int main() { g[2] = 9; return g[2]; }"));
+        }
     }
 
     [TestClass]

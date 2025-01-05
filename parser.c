@@ -23,8 +23,9 @@ static Node* while_stmt(Token** ppToken);
 static Node* for_stmt(Token** ppToken);
 static Node* compound_stmt(Token** ppToken);
 static Node* stmt(Token** ppToken);
-static Node* decl_var(Token** ppToken);
-static Node* def_func(Token** ppToken);
+static Node* decl_var(Token** ppToken, Node* pTypeNode, const Token* pVarNameToken);
+static Node* def_func(Token** ppToken, Node* pTypeNode, const Token* pFuncNameToken);
+static Node* def_func_or_var(Token** ppToken);
 static Node* type(Token** ppToken);
 static Node* program(Token** ppToken);
 
@@ -55,11 +56,11 @@ static Node* primary(Token** ppToken) {
         return node;
     }
 
-    // 次のトークンが識別子ならLVARノードを生成
+    // 次のトークンが識別子ならVARノードを生成
     const Token* pIdentToken = consume_ident(ppToken);
     if (pIdentToken) {
         Node* node = calloc(1, sizeof(Node));
-        node->kind = ND_LVAR;
+        node->kind = ND_VAR;
         node->pToken = pIdentToken;
         return node;
     }
@@ -76,7 +77,7 @@ static Node* postfix(Token** ppToken) {
 
         if (consume(ppToken, "(")) {
             //NOTE:現状、直接的な関数呼び出しにのみ対応している
-            if (pNode->kind != ND_LVAR) {
+            if (pNode->kind != ND_VAR) {
                 error_at(pNode->pToken->user_input, pNode->pToken->str, "非対応の関数呼び出し形式です");
             }
 
@@ -312,30 +313,25 @@ static Node* stmt(Token** ppToken) {
         node = compound_stmt(ppToken);
     }
     else {
-        node = decl_var(ppToken);
-        if (node == NULL) {
+        Node* pTypeNode = type(ppToken);
+        if (pTypeNode == NULL) {
             node = new_node(NULL, ND_EXPR_STMT, expr(ppToken), NULL);
         }
+        else {
+            const Token* pVarNameToken = consume_ident(ppToken);
+            if (pVarNameToken == NULL) {
+                error_at((*ppToken)->user_input, (*ppToken)->str, "変数名が必要です");
+            }
+            node = decl_var(ppToken, pTypeNode, pVarNameToken);
+        }
+
         expect(ppToken, ";");
     }
 
     return node;
 }
 
-static Node* decl_var(Token** ppToken) {
-    const Token* pVarNameToken;
-    Node* pTypeNode;
-
-    pTypeNode = type(ppToken);
-    if (pTypeNode == NULL) {
-        return NULL;
-    }
-
-    pVarNameToken = consume_ident(ppToken);
-    if (pVarNameToken == NULL) {
-        error_at((*ppToken)->user_input, (*ppToken)->str, "識別子が必要です");
-    }
-
+static Node* decl_var(Token** ppToken, Node* pTypeNode, const Token* pVarNameToken) {
     if (consume(ppToken, "[")) {
         Node* pCurNode = pTypeNode;
         while (pCurNode->rhs) pCurNode = (Node*)pCurNode->rhs;
@@ -356,23 +352,12 @@ static Node* decl_var(Token** ppToken) {
     return new_node(pVarNameToken, ND_DECL_VAR, pTypeNode, NULL);
 }
 
-static Node* def_func(Token** ppToken) {
-    Node* pTypeNode = type(ppToken);
-    if (pTypeNode == NULL) {
-        error_at((*ppToken)->user_input, (*ppToken)->str, "関数の戻り値の型名が必要です");
-    }
-
-    const Token* pFuncNameToken = consume_ident(ppToken);
-    if (pFuncNameToken == NULL) {
-        error_at((*ppToken)->user_input, (*ppToken)->str, "関数定義が必要です");
-    }
-
+static Node* def_func(Token** ppToken, Node* pTypeNode, const Token* pFuncNameToken) {
     Node* pDefFuncNode = new_node(pFuncNameToken, ND_DEF_FUNC, pTypeNode, NULL);
 
     const int maxParam = sizeof(pDefFuncNode->children) / sizeof(pDefFuncNode->children[0]);
     int argCount = 0;
 
-    expect(ppToken, "(");
     while (!consume(ppToken, ")")) {
         if (maxParam <= argCount) {
             error_at((*ppToken)->user_input, (*ppToken)->str, "引数の数が%d個以上ある関数定義は非対応です", maxParam);
@@ -381,17 +366,44 @@ static Node* def_func(Token** ppToken) {
             expect(ppToken, ",");
         }
 
-        Node* pParamNode = decl_var(ppToken);
-        if (pParamNode == NULL) {
-            error_at((*ppToken)->user_input, (*ppToken)->str, "引数定義が必要です");
+        Node* pTypeNode = type(ppToken);
+        if (pTypeNode == NULL) {
+            error_at((*ppToken)->user_input, (*ppToken)->str, "引数の型名が必要です");
         }
-        pDefFuncNode->children[argCount++] = pParamNode;
+
+        const Token* pParamNameToken = consume_ident(ppToken);
+        if (pParamNameToken == NULL) {
+            error_at((*ppToken)->user_input, (*ppToken)->str, "引数名が必要です");
+        }
+
+        pDefFuncNode->children[argCount++] = decl_var(ppToken, pTypeNode, pParamNameToken);
     }
 
     expect(ppToken, "{");
     pDefFuncNode->rhs = compound_stmt(ppToken);
 
     return pDefFuncNode;
+}
+
+static Node* def_func_or_var(Token** ppToken) {
+    Node* pTypeNode = type(ppToken);
+    if (pTypeNode == NULL) {
+        error_at((*ppToken)->user_input, (*ppToken)->str, "型名が必要です");
+    }
+
+    const Token* pNameToken = consume_ident(ppToken);
+    if (pNameToken == NULL) {
+        error_at((*ppToken)->user_input, (*ppToken)->str, "識別子が必要です");
+    }
+
+    if (consume(ppToken, "(")) {
+        return def_func(ppToken, pTypeNode, pNameToken);
+    }
+    else {
+        Node* pNode = decl_var(ppToken, pTypeNode, pNameToken);
+        expect(ppToken, ";");
+        return pNode;
+    }
 }
 
 static Node* type(Token** ppToken) {
@@ -426,7 +438,7 @@ static Node* program(Token** ppToken) {
     Node* pCur = NULL;
 
     while (!at_eof(*ppToken)) {
-        Node* pNode = new_node(NULL, ND_TOP_LEVEL, def_func(ppToken), NULL);
+        Node* pNode = new_node(NULL, ND_TOP_LEVEL, def_func_or_var(ppToken), NULL);
 
         if (pRoot == NULL) {
             pRoot = pNode;

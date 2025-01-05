@@ -15,7 +15,9 @@
 #define MAX_FUNC_NAME_LEN (64)
 
 typedef struct Type Type;
+typedef struct GVar GVar;
 typedef struct LVar LVar;
+typedef struct GlobalContext GlobalContext;
 typedef struct FuncContext FuncContext;
 
 struct Type {
@@ -27,6 +29,14 @@ struct Type {
 static const Type VOID_TYPE = { TY_VOID };
 static const Type INT_TYPE = { TY_INT };
 
+// グローバル変数の型
+struct GVar {
+    GVar* next;             // 次の変数かNULL
+    Type* pType;            // 変数の型
+    const char* name;       // 変数の名前
+    int len;                // 名前の長さ
+};
+
 // ローカル変数の型
 struct LVar {
     LVar* next;             // 次の変数かNULL
@@ -34,6 +44,13 @@ struct LVar {
     const char* name;       // 変数の名前
     int len;                // 名前の長さ
     int offset;             // RBPからのオフセット
+};
+
+// グローバルの環境
+struct GlobalContext {
+    int labelCount;
+    GVar* pGVars;           // グローバル変数テーブル
+    //TODO:関数テーブルもここ
 };
 
 // 関数定義内の環境
@@ -53,22 +70,31 @@ static const char PARAM_REG_NAME[][4][4] = {
 };
 _STATIC_ASSERT(sizeof(PARAM_REG_NAME[0]) / sizeof(PARAM_REG_NAME[0][0]) == sizeof(((Node*)0)->children) / sizeof(((Node*)0)->children[0]));
 
-static const Type* gen_left_expr(const Node* pNode, const FuncContext* pContext, int* pLabelCount);
-static void gen_if_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount);
-static void gen_while_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount);
-static void gen_for_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount);
-static const Type* gen_invoke_expr(const Node* pNode, const FuncContext* pContext, int* pLabelCount);
+static const Type* gen_left_expr(const Node* pNode, GlobalContext* pGlobalContext, const FuncContext* pContext);
+static void gen_if_stmt(const Node* pNode, GlobalContext* pGlobalContext, const FuncContext* pContext);
+static void gen_while_stmt(const Node* pNode, GlobalContext* pGlobalContext, const FuncContext* pContext);
+static void gen_for_stmt(const Node* pNode, GlobalContext* pGlobalContext, const FuncContext* pContext);
+static const Type* gen_invoke_expr(const Node* pNode, GlobalContext* pGlobalContext, const FuncContext* pContext);
 static const Type* gen_add_expr(const Node* pNode, const Type* pLhsType, const Type* pRhsType);
 static const Type* gen_sub_expr(const Node* pNode, const Type* pLhsType, const Type* pRhsType);
 static const Type* gen_mul_expr(const Node* pNode, const Type* pLhsType, const Type* pRhsType);
 static const Type* gen_div_expr(const Node* pNode, const Type* pLhsType, const Type* pRhsType);
-static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext, int* pLabelCount);
-static void gen_def_func(const Node* pNode, int* pLabelCount);
-static void gen_global_node(const Node* pNode, int* pLabelCount);
+static const Type* gen_local_node(const Node* pNode, GlobalContext* pGlobalContext, const FuncContext* pContext);
+static void gen_def_func(const Node* pNode, GlobalContext* pGlobalContext);
+static void gen_global_node(const Node* pNode, GlobalContext* pGlobalContext);
 
 // 変数を名前で検索する。見つからなかった場合はNULLを返す。
 static const LVar* find_lvar(const LVar* pLVarTop, const Node* pNode) {
     for (const LVar* pVar = pLVarTop; pVar; pVar = pVar->next) {
+        if (pVar->len == pNode->pToken->len && !memcmp(pNode->pToken->str, pVar->name, pVar->len)) {
+            return pVar;
+        }
+    }
+    return NULL;
+}
+
+static const GVar* find_gvar(const GVar* pGVarTop, const Node* pNode) {
+    for (const GVar* pVar = pGVarTop; pVar; pVar = pVar->next) {
         if (pVar->len == pNode->pToken->len && !memcmp(pNode->pToken->str, pVar->name, pVar->len)) {
             return pVar;
         }
@@ -90,7 +116,7 @@ static size_t get_type_size(const Type* pType) {
     }
 }
 
-static Type* parse_type(FuncContext* pContext, const Node* pNode) {
+static Type* parse_type(const Node* pNode) {
     Type* pType = calloc(1, sizeof(Type));
 
     if (pNode->kind != ND_TYPE) {
@@ -138,7 +164,7 @@ static int resigter_lvars(FuncContext* pContext, const Node* pNode) {
 
         LVar* pVar = calloc(1, sizeof(LVar));
         pVar->next = pContext->pLVars;
-        pVar->pType = parse_type(pContext, pNode->lhs);
+        pVar->pType = parse_type(pNode->lhs);
         pVar->pType->is_lvalue = true;
         pVar->name = pNode->pToken->str;
         pVar->len = pNode->pToken->len;
@@ -170,22 +196,31 @@ static int resigter_params(FuncContext* pContext, const Node* pNode) {
     return paramNum;
 }
 
-static const Type* gen_left_expr(const Node* pNode, const FuncContext* pContext, int* pLabelCount) {
-    if (pNode->kind == ND_LVAR) {
-        const LVar* pVar = find_lvar(pContext->pLVars, pNode);
-        if (pVar == NULL) {
-            error_at(pNode->pToken->user_input, pNode->pToken->str, "未定義の変数です");
+static const Type* gen_left_expr(const Node* pNode, GlobalContext* pGlobalContext, const FuncContext* pContext) {
+    if (pNode->kind == ND_VAR) {
+        const LVar* pLVar = find_lvar(pContext->pLVars, pNode);
+        if (pLVar != NULL) {
+            printf("  mov rax, rbp\n");
+            printf("  sub rax, %d\n", pLVar->offset);
+            printf("  push rax\n");
+            return pLVar->pType;
         }
 
-        printf("  mov rax, rbp\n");
-        printf("  sub rax, %d\n", pVar->offset);
-        printf("  push rax\n");
+        const GVar* pGVar = find_gvar(pGlobalContext->pGVars, pNode);
+        if (pGVar != NULL) {
+            char pszFormat[64] = { 0 };
+            snprintf(pszFormat, sizeof(pszFormat), "  lea rax, %%.%ds[rip]\n", pGVar->len);
+            printf(pszFormat, pGVar->name);
+            printf("  push rax\n");
+            return pGVar->pType;
+        }
 
-        return pVar->pType;
+        error_at(pNode->pToken->user_input, pNode->pToken->str, "未定義の変数です");
+        return NULL;
     }
     else if (pNode->kind == ND_DEREF) {
         // 単項*
-        const Type* pType = gen_local_node(pNode->lhs, pContext, pLabelCount);
+        const Type* pType = gen_local_node(pNode->lhs, pGlobalContext, pContext);
         if (pType->ty != TY_PTR && pType->ty != TY_ARRAY) {
             error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタ型ではない値はデリファレンスできません");
         }
@@ -202,7 +237,7 @@ static const Type* gen_left_expr(const Node* pNode, const FuncContext* pContext,
     }
     else {
         const Token* pCurToken = pNode->pToken;
-        const Type* pType = gen_local_node(pNode, pContext, pLabelCount);
+        const Type* pType = gen_local_node(pNode, pGlobalContext, pContext);
         if (!pType->is_lvalue) {
             error_at(pCurToken->user_input, pCurToken->str, "無効な左辺値です");
         }
@@ -210,47 +245,47 @@ static const Type* gen_left_expr(const Node* pNode, const FuncContext* pContext,
     }
 }
 
-static void gen_if_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount) {
-    const int endLabelId = (*pLabelCount)++;
+static void gen_if_stmt(const Node* pNode, GlobalContext* pGlobalContext, const FuncContext* pContext) {
+    const int endLabelId = pGlobalContext->labelCount++;
 
     // 条件式を評価
-    gen_local_node(pNode->children[0], pContext, pLabelCount);
+    gen_local_node(pNode->children[0], pGlobalContext, pContext);
     printf("  pop rax\n");
     printf("  cmp rax, 0\n");
 
     if (pNode->rhs) {
-        const int elseLabelId = (*pLabelCount)++;
+        const int elseLabelId = pGlobalContext->labelCount++;
 
         // 条件式が偽(0)ならelseラベルへジャンプ
         printf("  je  .Lelse%04d\n", elseLabelId);
 
         // 条件式が真なら(elseラベルへジャンプしていないなら)if-branchを評価し、endラベルへジャンプ
-        gen_local_node(pNode->lhs, pContext, pLabelCount);
+        gen_local_node(pNode->lhs, pGlobalContext, pContext);
         printf("  jmp .Lend%04d\n", endLabelId);
 
         // elseラベルではelse-branchを実行（endラベルへは自然と落ちるためジャンプ不要）
         printf(".Lelse%04d:\n", elseLabelId);
-        gen_local_node(pNode->rhs, pContext, pLabelCount);
+        gen_local_node(pNode->rhs, pGlobalContext, pContext);
     }
     else {
         // 条件式が偽(0)ならendラベルへジャンプ
         printf("  je  .Lend%04d\n", endLabelId);
 
         // 条件式が真なら(elseラベルへジャンプしていないなら)if-branchを実行
-        gen_local_node(pNode->lhs, pContext, pLabelCount);
+        gen_local_node(pNode->lhs, pGlobalContext, pContext);
     }
 
     printf(".Lend%04d:\n", endLabelId);
 }
 
-static void gen_while_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount) {
-    const int beginLabelId = (*pLabelCount)++;
-    const int endLabelId = (*pLabelCount)++;
+static void gen_while_stmt(const Node* pNode, GlobalContext* pGlobalContext, const FuncContext* pContext) {
+    const int beginLabelId = pGlobalContext->labelCount++;
+    const int endLabelId = pGlobalContext->labelCount++;
 
     printf(".Lbegin%04d:\n", beginLabelId);
 
     // 条件式を評価
-    gen_local_node(pNode->lhs, pContext, pLabelCount);
+    gen_local_node(pNode->lhs, pGlobalContext, pContext);
     printf("  pop rax\n");
     printf("  cmp rax, 0\n");
 
@@ -258,7 +293,7 @@ static void gen_while_stmt(const Node* pNode, const FuncContext* pContext, int* 
     printf("  je  .Lend%04d\n", endLabelId);
 
     // ループ対象の文を実行
-    gen_local_node(pNode->rhs, pContext, pLabelCount);
+    gen_local_node(pNode->rhs, pGlobalContext, pContext);
 
     // ループするためにbeginラベルへ無条件ジャンプ
     printf("  jmp .Lbegin%04d\n", beginLabelId);
@@ -266,7 +301,7 @@ static void gen_while_stmt(const Node* pNode, const FuncContext* pContext, int* 
     printf(".Lend%04d:\n", endLabelId);
 }
 
-static void gen_for_stmt(const Node* pNode, const FuncContext* pContext, int* pLabelCount) {
+static void gen_for_stmt(const Node* pNode, GlobalContext* pGlobalContext, const FuncContext* pContext) {
     /*
   Aをコンパイルしたコード
 .LbeginXXX:
@@ -279,12 +314,12 @@ static void gen_for_stmt(const Node* pNode, const FuncContext* pContext, int* pL
   jmp .LbeginXXX
 .LendXXX:
     */
-    const int beginLabelId = (*pLabelCount)++;
-    const int endLabelId = (*pLabelCount)++;
+    const int beginLabelId = pGlobalContext->labelCount++;
+    const int endLabelId = pGlobalContext->labelCount++;
 
     // 初期化式を評価
     if (pNode->children[0]) {
-        gen_local_node(pNode->children[0], pContext, pLabelCount);
+        gen_local_node(pNode->children[0], pGlobalContext, pContext);
         // 式の評価結果としてスタックに一つの値が残っている
         // はずなので、スタックが溢れないようにポップしておく
         printf("  pop rax\n");
@@ -294,7 +329,7 @@ static void gen_for_stmt(const Node* pNode, const FuncContext* pContext, int* pL
 
     // 条件式を評価
     if (pNode->children[1]) {
-        gen_local_node(pNode->children[1], pContext, pLabelCount);
+        gen_local_node(pNode->children[1], pGlobalContext, pContext);
         printf("  pop rax\n");
         printf("  cmp rax, 0\n");
 
@@ -303,11 +338,11 @@ static void gen_for_stmt(const Node* pNode, const FuncContext* pContext, int* pL
     }
 
     // ループ対象の文を実行
-    gen_local_node(pNode->rhs, pContext, pLabelCount);
+    gen_local_node(pNode->rhs, pGlobalContext, pContext);
 
     // ループごとに評価する式を評価
     if (pNode->children[2]) {
-        gen_local_node(pNode->children[2], pContext, pLabelCount);
+        gen_local_node(pNode->children[2], pGlobalContext, pContext);
         // 式の評価結果としてスタックに一つの値が残っている
         // はずなので、スタックが溢れないようにポップしておく
         printf("  pop rax\n");
@@ -319,7 +354,7 @@ static void gen_for_stmt(const Node* pNode, const FuncContext* pContext, int* pL
     printf(".Lend%04d:\n", endLabelId);
 }
 
-static const Type* gen_invoke_expr(const Node* pNode, const FuncContext* pContext, int* pLabelCount) {
+static const Type* gen_invoke_expr(const Node* pNode, GlobalContext* pGlobalContext, const FuncContext* pContext) {
     int i;
     char funcName[MAX_FUNC_NAME_LEN + 1] = { 0 };
 
@@ -332,7 +367,7 @@ static const Type* gen_invoke_expr(const Node* pNode, const FuncContext* pContex
     for (i = 0; i < sizeof(pNode->children) / sizeof(pNode->children[0]); ++i) {
         if (pNode->children[i] == NULL) break;
 
-        gen_local_node(pNode->children[i], pContext, pLabelCount);
+        gen_local_node(pNode->children[i], pGlobalContext, pContext);
         printf("  pop %s\n", PARAM_REG_NAME[PARAM_REG_INDEX_64BIT][i]);
     }
 
@@ -508,7 +543,7 @@ static const Type* gen_div_expr(const Node* pNode, const Type* pLhsType, const T
     return &INT_TYPE;
 }
 
-static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext, int* pLabelCount) {
+static const Type* gen_local_node(const Node* pNode, GlobalContext* pGlobalContext, const FuncContext* pContext) {
     if (!pNode) {
         error("Internal Error. Node is NULL.");
     }
@@ -527,14 +562,14 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
         // 数値リテラル
         printf("  push %d\n", pNode->pToken->val);
         return &INT_TYPE;
-    case ND_LVAR:
+    case ND_VAR:
         // 変数
         {
-            const Type* pType = gen_left_expr(pNode, pContext, pLabelCount);
+            const Type* pType = gen_left_expr(pNode, pGlobalContext, pContext);
             printf("  pop rax\n");
             switch (pType->ty) {
             case TY_INT:
-                printf("  mov rax, [rax]\n");
+                printf("  mov eax, [rax]\n");
                 printf("  cdqe\n");
                 break;
             case TY_PTR:
@@ -559,13 +594,13 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
         {
             Type* pResultType = calloc(1, sizeof(Type));
             pResultType->ty = TY_PTR;
-            pResultType->ptr_to = gen_left_expr(pNode->lhs, pContext, pLabelCount);
+            pResultType->ptr_to = gen_left_expr(pNode->lhs, pGlobalContext, pContext);
             return pResultType;
         }
     case ND_DEREF:
         // 単項*
         {
-            const Type* pResultType = gen_local_node(pNode->lhs, pContext, pLabelCount);
+            const Type* pResultType = gen_local_node(pNode->lhs, pGlobalContext, pContext);
             if (pResultType->ty != TY_PTR && pResultType->ty != TY_ARRAY) {
                 error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタ型ではない値はデリファレンスできません");
             }
@@ -582,7 +617,7 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
             FILE* hNull = CreateFileA("NUL", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
             SetStdHandle(STD_OUTPUT_HANDLE, hNull);
 
-            const size_t size = get_type_size(gen_local_node(pNode->lhs, pContext, pLabelCount));
+            const size_t size = get_type_size(gen_local_node(pNode->lhs, pGlobalContext, pContext));
 
             // 標準出力を元に戻す
             SetStdHandle(STD_OUTPUT_HANDLE, backup_stdout);
@@ -593,12 +628,12 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
         }
     case ND_INVOKE:
         // 関数呼び出し
-        return gen_invoke_expr(pNode, pContext, pLabelCount);
+        return gen_invoke_expr(pNode, pGlobalContext, pContext);
     case ND_ASSIGN:
         // 代入演算
         {
-            const Type* pLhsType = gen_left_expr(pNode->lhs, pContext, pLabelCount);
-            const Type* pRhsType = gen_local_node(pNode->rhs, pContext, pLabelCount);
+            const Type* pLhsType = gen_left_expr(pNode->lhs, pGlobalContext, pContext);
+            const Type* pRhsType = gen_local_node(pNode->rhs, pGlobalContext, pContext);
 
             switch (pLhsType->ty) {
             case TY_INT:
@@ -622,14 +657,14 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
         }
     case ND_BLOCK:
         // ブロック
-        gen_local_node(pNode->lhs, pContext, pLabelCount);
+        gen_local_node(pNode->lhs, pGlobalContext, pContext);
 
         // 継続文があるならそれを評価
-        if (pNode->rhs) gen_local_node(pNode->rhs, pContext, pLabelCount);
+        if (pNode->rhs) gen_local_node(pNode->rhs, pGlobalContext, pContext);
         return &VOID_TYPE;
     case ND_EXPR_STMT:
         // 式文
-        gen_local_node(pNode->lhs, pContext, pLabelCount);
+        gen_local_node(pNode->lhs, pGlobalContext, pContext);
 
         // 式の評価結果としてスタックに一つの値が残っている
         // はずなので、スタックが溢れないようにポップしておく
@@ -637,7 +672,7 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
         return &VOID_TYPE;
     case ND_RETURN:
         // return文
-        gen_local_node(pNode->lhs, pContext, pLabelCount);
+        gen_local_node(pNode->lhs, pGlobalContext, pContext);
         printf("  pop rax\n");
         printf("  mov rsp, rbp\n");
         printf("  pop rbp\n");
@@ -645,21 +680,21 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
         return &VOID_TYPE;
     case ND_IF:
         // if文
-        gen_if_stmt(pNode, pContext, pLabelCount);
+        gen_if_stmt(pNode, pGlobalContext, pContext);
         return &VOID_TYPE;
     case ND_WHILE:
         // while文
-        gen_while_stmt(pNode, pContext, pLabelCount);
+        gen_while_stmt(pNode, pGlobalContext, pContext);
         return &VOID_TYPE;
     case ND_FOR:
         // for文
-        gen_for_stmt(pNode, pContext, pLabelCount);
+        gen_for_stmt(pNode, pGlobalContext, pContext);
         return &VOID_TYPE;
     }
 
     // 二項演算
-    const Type* pLhsType = gen_local_node(pNode->lhs, pContext, pLabelCount);
-    const Type* pRhsType = gen_local_node(pNode->rhs, pContext, pLabelCount);
+    const Type* pLhsType = gen_local_node(pNode->lhs, pGlobalContext, pContext);
+    const Type* pRhsType = gen_local_node(pNode->rhs, pGlobalContext, pContext);
     const Type* pResultType = NULL;
     printf("  pop rdi\n");
     printf("  pop rax\n");
@@ -709,7 +744,7 @@ static const Type* gen_local_node(const Node* pNode, const FuncContext* pContext
     return pResultType;
 }
 
-static void gen_def_func(const Node* pNode, int* pLabelCount) {
+static void gen_def_func(const Node* pNode, GlobalContext* pGlobalContext) {
     int i;
     FuncContext context = { 0 };
     char funcName[MAX_FUNC_NAME_LEN + 1] = { 0 };
@@ -754,7 +789,7 @@ static void gen_def_func(const Node* pNode, int* pLabelCount) {
     }
 
     // 各ノードの解析を行いアセンブリを順次出力する
-    gen_local_node(pNode->rhs, &context, pLabelCount);
+    gen_local_node(pNode->rhs, pGlobalContext, &context);
 
     // エピローグ
     // 最後の式の結果がRAXに残っているのでそれが返り値になる
@@ -763,7 +798,7 @@ static void gen_def_func(const Node* pNode, int* pLabelCount) {
     printf("  ret\n");
 }
 
-static void gen_global_node(const Node* pNode, int* pLabelCount) {
+static void gen_global_node(const Node* pNode, GlobalContext* pGlobalContext) {
     if (!pNode) {
         error("Internal Error. Node is NULL.");
         return;
@@ -775,14 +810,17 @@ static void gen_global_node(const Node* pNode, int* pLabelCount) {
         return;
     case ND_TOP_LEVEL:
         // 関数定義外のトップレベル層
-        gen_global_node(pNode->lhs, pLabelCount);
+        gen_global_node(pNode->lhs, pGlobalContext);
 
         // 継続ノードがあるならそれを評価
-        if (pNode->rhs) gen_global_node(pNode->rhs, pLabelCount);
+        if (pNode->rhs) gen_global_node(pNode->rhs, pGlobalContext);
         return;
     case ND_DEF_FUNC:
         // 関数定義
-        gen_def_func(pNode, pLabelCount);
+        gen_def_func(pNode, pGlobalContext);
+        return;
+    case ND_DECL_VAR:
+        // グローバル変数宣言（事前に登録済み）
         return;
     default:
         error("Internal Error. Invalid NodeKind '%d'.", pNode->kind);
@@ -790,13 +828,51 @@ static void gen_global_node(const Node* pNode, int* pLabelCount) {
     }
 }
 
+// グローバル変数を登録する
+static void resigter_gvars(GlobalContext* pGlobalContext, const Node* pNode) {
+    if (!pNode) return;
+
+    switch (pNode->kind) {
+    case ND_TOP_LEVEL:
+        resigter_gvars(pGlobalContext, pNode->lhs);
+        resigter_gvars(pGlobalContext, pNode->rhs);
+        break;
+    case ND_DECL_VAR:
+        {
+            if (find_gvar(pGlobalContext->pGVars, pNode) != NULL) {
+                error_at(pNode->pToken->user_input, pNode->pToken->str, "グローバル変数名が重複しています");
+            }
+
+            GVar* pVar = calloc(1, sizeof(GVar));
+            pVar->next = pGlobalContext->pGVars;
+            pVar->pType = parse_type(pNode->lhs);
+            pVar->pType->is_lvalue = true;
+            pVar->name = pNode->pToken->str;
+            pVar->len = pNode->pToken->len;
+            pGlobalContext->pGVars = pVar;
+
+            char pszFormat[64] = { 0 };
+            snprintf(pszFormat, sizeof(pszFormat), "%%.%ds:\n", pVar->len);
+            printf(pszFormat, pVar->name);
+            printf("  .zero %zd\n", get_type_size(pVar->pType));
+        }
+        break;
+    }
+}
+
 void gen(const Node* pNode) {
-    int labelCount = 0;
+    GlobalContext globalContext = { 0 };
 
     // アセンブリの前半部分を出力
     printf(".intel_syntax noprefix\n");
+
+    // グローバル変数の登録
+    printf(".bss\n");
+    resigter_gvars(&globalContext, pNode);
+
+    printf(".text\n");
     printf(".globl main\n");
 
     // 各ノードの解析を行いアセンブリを順次出力する
-    gen_global_node(pNode, &labelCount);
+    gen_global_node(pNode, &globalContext);
 }
