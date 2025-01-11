@@ -85,7 +85,7 @@ static Node* postfix(Token** ppToken) {
         if (consume(ppToken, "(")) {
             //NOTE:現状、直接的な関数呼び出しにのみ対応している
             if (pNode->kind != ND_VAR) {
-                error_at(pNode->pToken->user_input, pNode->pToken->str, "非対応の関数呼び出し形式です");
+                error_at(pNode->pToken->filename, pNode->pToken->user_input, pNode->pToken->str, "非対応の関数呼び出し形式です");
             }
 
             Node* pInvokeNode = new_node(pNode->pToken, ND_INVOKE, NULL, NULL);
@@ -93,7 +93,7 @@ static Node* postfix(Token** ppToken) {
             int argCount = 0;
             while (!consume(ppToken, ")")) {
                 if (maxParam <= argCount) {
-                    error_at((*ppToken)->user_input, (*ppToken)->str, "引数の数が%d個以上ある関数呼び出しは非対応です", maxParam);
+                    error_at((*ppToken)->filename, (*ppToken)->user_input, (*ppToken)->str, "引数の数が%d個以上ある関数呼び出しは非対応です", maxParam);
                 }
                 if (0 < argCount) {
                     expect(ppToken, ",");
@@ -327,7 +327,7 @@ static Node* stmt(Token** ppToken) {
         else {
             const Token* pVarNameToken = consume_ident(ppToken);
             if (pVarNameToken == NULL) {
-                error_at((*ppToken)->user_input, (*ppToken)->str, "変数名が必要です");
+                error_at((*ppToken)->filename, (*ppToken)->user_input, (*ppToken)->str, "変数名が必要です");
             }
             node = decl_var(ppToken, pTypeNode, pVarNameToken);
         }
@@ -348,7 +348,7 @@ static Node* decl_var(Token** ppToken, Node* pTypeNode, const Token* pVarNameTok
             const Token* pToken = *ppToken;
             const int size = expect_number(ppToken);
             if (size <= 0) {
-                error_at(pToken->user_input, pToken->str, "'%d' は配列のサイズとして不正です", size);
+                error_at(pToken->filename, pToken->user_input, pToken->str, "'%d' は配列のサイズとして不正です", size);
             }
             pCurNode->rhs = new_node_num(size);
             pCurNode = (Node*)pCurNode->rhs;
@@ -367,7 +367,7 @@ static Node* def_func(Token** ppToken, Node* pTypeNode, const Token* pFuncNameTo
 
     while (!consume(ppToken, ")")) {
         if (maxParam <= argCount) {
-            error_at((*ppToken)->user_input, (*ppToken)->str, "引数の数が%d個以上ある関数定義は非対応です", maxParam);
+            error_at((*ppToken)->filename, (*ppToken)->user_input, (*ppToken)->str, "引数の数が%d個以上ある関数定義は非対応です", maxParam);
         }
         if (0 < argCount) {
             expect(ppToken, ",");
@@ -375,12 +375,12 @@ static Node* def_func(Token** ppToken, Node* pTypeNode, const Token* pFuncNameTo
 
         Node* pTypeNode = type(ppToken);
         if (pTypeNode == NULL) {
-            error_at((*ppToken)->user_input, (*ppToken)->str, "引数の型名が必要です");
+            error_at((*ppToken)->filename, (*ppToken)->user_input, (*ppToken)->str, "引数の型名が必要です");
         }
 
         const Token* pParamNameToken = consume_ident(ppToken);
         if (pParamNameToken == NULL) {
-            error_at((*ppToken)->user_input, (*ppToken)->str, "引数名が必要です");
+            error_at((*ppToken)->filename, (*ppToken)->user_input, (*ppToken)->str, "引数名が必要です");
         }
 
         pDefFuncNode->children[argCount++] = decl_var(ppToken, pTypeNode, pParamNameToken);
@@ -395,12 +395,12 @@ static Node* def_func(Token** ppToken, Node* pTypeNode, const Token* pFuncNameTo
 static Node* def_func_or_var(Token** ppToken) {
     Node* pTypeNode = type(ppToken);
     if (pTypeNode == NULL) {
-        error_at((*ppToken)->user_input, (*ppToken)->str, "型名が必要です");
+        error_at((*ppToken)->filename, (*ppToken)->user_input, (*ppToken)->str, "型名が必要です");
     }
 
     const Token* pNameToken = consume_ident(ppToken);
     if (pNameToken == NULL) {
-        error_at((*ppToken)->user_input, (*ppToken)->str, "識別子が必要です");
+        error_at((*ppToken)->filename, (*ppToken)->user_input, (*ppToken)->str, "識別子が必要です");
     }
 
     if (consume(ppToken, "(")) {

@@ -144,7 +144,7 @@ static Type* parse_type(const Node* pNode) {
     Type* pType = calloc(1, sizeof(Type));
 
     if (pNode->kind != ND_TYPE) {
-        error_at(pNode->pToken->user_input, pNode->pToken->str, "型名が必要です");
+        error_at(pNode->pToken->filename, pNode->pToken->user_input, pNode->pToken->str, "型名が必要です");
     }
 
     switch (pNode->pToken->kind) {
@@ -155,7 +155,7 @@ static Type* parse_type(const Node* pNode) {
         pType->ty = TY_INT;
         break;
     default:
-        error_at(pNode->pToken->user_input, pNode->pToken->str, "未定義の型名です");
+        error_at(pNode->pToken->filename, pNode->pToken->user_input, pNode->pToken->str, "未定義の型名です");
     }
 
     const Node* pCurNode = pNode;
@@ -186,7 +186,7 @@ static Type* parse_type(const Node* pNode) {
 static int resigter_lvars(FuncContext* pContext, const Node* pNode) {
     if (pNode->kind == ND_DECL_VAR) {
         if (find_lvar(pContext->pLVars, pNode) != NULL) {
-            error_at(pNode->pToken->user_input, pNode->pToken->str, "ローカル変数名が重複しています");
+            error_at(pNode->pToken->filename, pNode->pToken->user_input, pNode->pToken->str, "ローカル変数名が重複しています");
         }
 
         LVar* pVar = calloc(1, sizeof(LVar));
@@ -214,7 +214,7 @@ static int resigter_params(FuncContext* pContext, const Node* pNode) {
         if (pNode->children[paramNum] == NULL) break;
 
         if (find_lvar(pContext->pLVars, pNode->children[paramNum]) != NULL) {
-            error_at(pNode->children[paramNum]->pToken->user_input, pNode->children[paramNum]->pToken->str, "引数名が重複しています");
+            error_at(pNode->children[paramNum]->pToken->filename, pNode->children[paramNum]->pToken->user_input, pNode->children[paramNum]->pToken->str, "引数名が重複しています");
         }
 
         resigter_lvars(pContext, pNode->children[paramNum]);
@@ -242,14 +242,14 @@ static const Type* gen_left_expr(const Node* pNode, GlobalContext* pGlobalContex
             return pGVar->pType;
         }
 
-        error_at(pNode->pToken->user_input, pNode->pToken->str, "未定義の変数です");
+        error_at(pNode->pToken->filename, pNode->pToken->user_input, pNode->pToken->str, "未定義の変数です");
         return NULL;
     }
     else if (pNode->kind == ND_DEREF) {
         // 単項*
         const Type* pType = gen_local_node(pNode->lhs, pGlobalContext, pContext);
         if (pType->ty != TY_PTR && pType->ty != TY_ARRAY) {
-            error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタ型ではない値はデリファレンスできません");
+            error_at(pNode->pToken->filename, pNode->pToken->user_input, pNode->pToken->str, "ポインタ型ではない値はデリファレンスできません");
         }
 
         if (pType->ptr_to->is_lvalue) {
@@ -266,7 +266,7 @@ static const Type* gen_left_expr(const Node* pNode, GlobalContext* pGlobalContex
         const Token* pCurToken = pNode->pToken;
         const Type* pType = gen_local_node(pNode, pGlobalContext, pContext);
         if (!pType->is_lvalue) {
-            error_at(pCurToken->user_input, pCurToken->str, "無効な左辺値です");
+            error_at(pCurToken->filename, pCurToken->user_input, pCurToken->str, "無効な左辺値です");
         }
         return pType;
     }
@@ -386,7 +386,7 @@ static const Type* gen_invoke_expr(const Node* pNode, GlobalContext* pGlobalCont
     char funcName[MAX_FUNC_NAME_LEN + 1] = { 0 };
 
     if (MAX_FUNC_NAME_LEN <= pNode->pToken->len) {
-        error_at(pNode->pToken->user_input, pNode->pToken->str, "関数名が%d文字以上あります", MAX_FUNC_NAME_LEN);
+        error_at(pNode->pToken->filename, pNode->pToken->user_input, pNode->pToken->str, "関数名が%d文字以上あります", MAX_FUNC_NAME_LEN);
     }
     memcpy(funcName, pNode->pToken->str, pNode->pToken->len);
 
@@ -453,7 +453,7 @@ static const Type* gen_add_expr(const Node* pNode, const Type* pLhsType, const T
             break;
         case TY_PTR:
         case TY_ARRAY:
-            error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタ同士の加算はできません");
+            error_at(pNode->pToken->filename, pNode->pToken->user_input, pNode->pToken->str, "ポインタ同士の加算はできません");
         default:
             error("Internal Error. Invalid Type '%d'.", pRhsType->ty);
         }
@@ -480,7 +480,7 @@ static const Type* gen_sub_expr(const Node* pNode, const Type* pLhsType, const T
             break;
         case TY_PTR:
         case TY_ARRAY:
-            error_at(pNode->pToken->user_input, pNode->pToken->str, "整数値からポインタの減算はできません");
+            error_at(pNode->pToken->filename, pNode->pToken->user_input, pNode->pToken->str, "整数値からポインタの減算はできません");
         default:
             error("Internal Error. Invalid Type '%d'.", pRhsType->ty);
         }
@@ -498,7 +498,7 @@ static const Type* gen_sub_expr(const Node* pNode, const Type* pLhsType, const T
         case TY_ARRAY:
             //ポインタ同士の減算はptrdiff_t型になる
             if (pLhsType->ptr_to->ty != pRhsType->ptr_to->ty) {
-                error_at(pNode->pToken->user_input, pNode->pToken->str, "減算するポインタの型が一致していません");
+                error_at(pNode->pToken->filename, pNode->pToken->user_input, pNode->pToken->str, "減算するポインタの型が一致していません");
             }
             printf("  sub rax, rdi\n");
 
@@ -528,7 +528,7 @@ static const Type* gen_mul_expr(const Node* pNode, const Type* pLhsType, const T
         break;
     case TY_PTR:
     case TY_ARRAY:
-        error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタの乗算はできません");
+        error_at(pNode->pToken->filename, pNode->pToken->user_input, pNode->pToken->str, "ポインタの乗算はできません");
         break;
     default:
         error("Internal Error. Invalid Type '%d'.", pLhsType->ty);
@@ -540,7 +540,7 @@ static const Type* gen_mul_expr(const Node* pNode, const Type* pLhsType, const T
         break;
     case TY_PTR:
     case TY_ARRAY:
-        error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタの乗算はできません");
+        error_at(pNode->pToken->filename, pNode->pToken->user_input, pNode->pToken->str, "ポインタの乗算はできません");
         break;
     default:
         error("Internal Error. Invalid Type '%d'.", pRhsType->ty);
@@ -557,7 +557,7 @@ static const Type* gen_div_expr(const Node* pNode, const Type* pLhsType, const T
         break;
     case TY_PTR:
     case TY_ARRAY:
-        error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタの除算はできません");
+        error_at(pNode->pToken->filename, pNode->pToken->user_input, pNode->pToken->str, "ポインタの除算はできません");
         break;
     default:
         error("Internal Error. Invalid Type '%d'.", pLhsType->ty);
@@ -569,7 +569,7 @@ static const Type* gen_div_expr(const Node* pNode, const Type* pLhsType, const T
         break;
     case TY_PTR:
     case TY_ARRAY:
-        error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタの除算はできません");
+        error_at(pNode->pToken->filename, pNode->pToken->user_input, pNode->pToken->str, "ポインタの除算はできません");
         break;
     default:
         error("Internal Error. Invalid Type '%d'.", pRhsType->ty);
@@ -630,7 +630,7 @@ static const Type* gen_local_node(const Node* pNode, GlobalContext* pGlobalConte
         {
             const Type* pResultType = gen_local_node(pNode->lhs, pGlobalContext, pContext);
             if (pResultType->ty != TY_PTR && pResultType->ty != TY_ARRAY) {
-                error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタ型ではない値はデリファレンスできません");
+                error_at(pNode->pToken->filename, pNode->pToken->user_input, pNode->pToken->str, "ポインタ型ではない値はデリファレンスできません");
             }
             printf("  pop rax\n");
             eval_var(pResultType->ptr_to, "rax");
@@ -783,7 +783,7 @@ static void gen_def_func(const Node* pNode, GlobalContext* pGlobalContext) {
     char funcName[MAX_FUNC_NAME_LEN + 1] = { 0 };
 
     if (MAX_FUNC_NAME_LEN <= pNode->pToken->len) {
-        error_at(pNode->pToken->user_input, pNode->pToken->str, "関数名が%d文字以上あります", MAX_FUNC_NAME_LEN);
+        error_at(pNode->pToken->filename, pNode->pToken->user_input, pNode->pToken->str, "関数名が%d文字以上あります", MAX_FUNC_NAME_LEN);
     }
     memcpy(funcName, pNode->pToken->str, pNode->pToken->len);
 
@@ -876,7 +876,7 @@ static void resigter_gvars(GlobalContext* pGlobalContext, const Node* pNode) {
     case ND_DECL_VAR:
         {
             if (find_gvar(pGlobalContext->pGVars, pNode) != NULL) {
-                error_at(pNode->pToken->user_input, pNode->pToken->str, "グローバル変数名が重複しています");
+                error_at(pNode->pToken->filename, pNode->pToken->user_input, pNode->pToken->str, "グローバル変数名が重複しています");
             }
 
             GVar* pVar = calloc(1, sizeof(GVar));

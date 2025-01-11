@@ -27,6 +27,7 @@ struct Token {
     int val;                    // kindがTK_NUMの場合、その数値
     const char* str;            // トークン文字列
     int len;                    // トークンの長さ
+    const char* filename;       // 入力ファイル名
     const char* user_input;     // 分解元ユーザー入力文字列
 };
 
@@ -60,4 +61,4 @@ int expect_number(Token** ppToken);
 bool at_eof(Token* pToken);
 
 // 入力文字列pをトークナイズしてそれを返す
-Token* tokenize(const char* user_input, StringLiteral** ppStrLiterals);
+Token* tokenize(const char* filename, StringLiteral** ppStrLiterals);
