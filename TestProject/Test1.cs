@@ -321,6 +321,15 @@ namespace TestProject
             Assert.AreEqual(7, Compile("int g; int f() { g = 5; return 0; } int main() { int g; g = 7; f(); return g; }"));
             Assert.AreEqual(9, Compile("int g[3]; int main() { g[2] = 9; return g[2]; }"));
         }
+
+        [TestMethod]
+        public void TestMethod24()
+        {
+            Assert.AreEqual(42, Compile("int main() { char x; x = 42; return x; }"));
+            Assert.AreEqual(5, Compile("int main() { char x; x = 3; char y; y = 2; return x + y; }"));
+            Assert.AreEqual(7, Compile("int main() { char x[3]; x[0] = 4; x[2] = 3; return x[0] + x[2]; }"));
+            Assert.AreEqual(3, Compile("int main() { char x[3]; x[0] = -1; x[1] = 2; int y; y = 4; return x[0] + y; }"));
+        }
     }
 
     [TestClass]

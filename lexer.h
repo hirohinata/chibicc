@@ -8,6 +8,7 @@ typedef enum {
     TK_ELSE,     // else
     TK_WHILE,    // while
     TK_FOR,      // for
+    TK_CHAR,     // char
     TK_INT,      // int
     TK_SIZEOF,   // sizeof
     TK_IDENT,    // Ž¯•ÊŽq

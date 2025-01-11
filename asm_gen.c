@@ -21,12 +21,13 @@ typedef struct GlobalContext GlobalContext;
 typedef struct FuncContext FuncContext;
 
 struct Type {
-    enum { TY_VOID, TY_INT, TY_PTR, TY_ARRAY } ty;
+    enum { TY_VOID, TY_CHAR, TY_INT, TY_PTR, TY_ARRAY } ty;
     const Type* ptr_to;
     size_t array_size;
     bool is_lvalue;
 };
 static const Type VOID_TYPE = { TY_VOID };
+static const Type CHAR_TYPE = { TY_CHAR };
 static const Type INT_TYPE = { TY_INT };
 
 // グローバル変数の型
@@ -104,6 +105,8 @@ static const GVar* find_gvar(const GVar* pGVarTop, const Node* pNode) {
 
 static size_t get_type_size(const Type* pType) {
     switch (pType->ty) {
+    case TY_CHAR:
+        return 1;
     case TY_INT:
         return 4;
     case TY_PTR:
@@ -116,6 +119,26 @@ static size_t get_type_size(const Type* pType) {
     }
 }
 
+static void eval_var(const Type* pType, const char* pszRegName) {
+    switch (pType->ty) {
+    case TY_CHAR:
+        printf("  movsx %s, BYTE PTR [%s]\n", pszRegName, pszRegName);
+        break;
+    case TY_INT:
+        printf("  movsx %s, DWORD PTR [%s]\n", pszRegName, pszRegName);
+        break;
+    case TY_PTR:
+        printf("  mov %s, [%s]\n", pszRegName, pszRegName);
+        break;
+    case TY_ARRAY:
+        //ポインタ型はその指し示す先にある値を取り出すことで評価となるが、配列型はその指し示す先にある値は[0]の要素そのもの
+        //raxに格納されている値は配列型を指し示すポインタであるため、何もしないことで配列型変数の評価となる
+        break;
+    default:
+        error("Internal Error. Invalid Type '%d'.", pType->ty);
+    }
+}
+
 static Type* parse_type(const Node* pNode) {
     Type* pType = calloc(1, sizeof(Type));
 
@@ -124,6 +147,9 @@ static Type* parse_type(const Node* pNode) {
     }
 
     switch (pNode->pToken->kind) {
+    case TK_CHAR:
+        pType->ty = TY_CHAR;
+        break;
     case TK_INT:
         pType->ty = TY_INT;
         break;
@@ -398,8 +424,10 @@ static const Type* gen_add_expr(const Node* pNode, const Type* pLhsType, const T
     const Type* pResultType = NULL;
 
     switch (pLhsType->ty) {
+    case TY_CHAR:
     case TY_INT:
         switch (pRhsType->ty) {
+        case TY_CHAR:
         case TY_INT:
             pResultType = &INT_TYPE;
             break;
@@ -416,6 +444,7 @@ static const Type* gen_add_expr(const Node* pNode, const Type* pLhsType, const T
     case TY_PTR:
     case TY_ARRAY:
         switch (pRhsType->ty) {
+        case TY_CHAR:
         case TY_INT:
             //右辺値の整数値をポインタが指す先の型サイズ倍する
             printf("  imul rdi, %zd\n", get_type_size(pLhsType->ptr_to));
@@ -441,8 +470,10 @@ static const Type* gen_sub_expr(const Node* pNode, const Type* pLhsType, const T
     const Type* pResultType = NULL;
 
     switch (pLhsType->ty) {
+    case TY_CHAR:
     case TY_INT:
         switch (pRhsType->ty) {
+        case TY_CHAR:
         case TY_INT:
             pResultType = &INT_TYPE;
             break;
@@ -456,6 +487,7 @@ static const Type* gen_sub_expr(const Node* pNode, const Type* pLhsType, const T
     case TY_PTR:
     case TY_ARRAY:
         switch (pRhsType->ty) {
+        case TY_CHAR:
         case TY_INT:
             //右辺値の整数値をポインタが指す先の型サイズ倍する
             printf("  imul rdi, %zd\n", get_type_size(pLhsType->ptr_to));
@@ -490,6 +522,7 @@ static const Type* gen_sub_expr(const Node* pNode, const Type* pLhsType, const T
 
 static const Type* gen_mul_expr(const Node* pNode, const Type* pLhsType, const Type* pRhsType) {
     switch (pLhsType->ty) {
+    case TY_CHAR:
     case TY_INT:
         break;
     case TY_PTR:
@@ -501,6 +534,7 @@ static const Type* gen_mul_expr(const Node* pNode, const Type* pLhsType, const T
     }
 
     switch (pRhsType->ty) {
+    case TY_CHAR:
     case TY_INT:
         break;
     case TY_PTR:
@@ -517,6 +551,7 @@ static const Type* gen_mul_expr(const Node* pNode, const Type* pLhsType, const T
 
 static const Type* gen_div_expr(const Node* pNode, const Type* pLhsType, const Type* pRhsType) {
     switch (pLhsType->ty) {
+    case TY_CHAR:
     case TY_INT:
         break;
     case TY_PTR:
@@ -528,6 +563,7 @@ static const Type* gen_div_expr(const Node* pNode, const Type* pLhsType, const T
     }
 
     switch (pRhsType->ty) {
+    case TY_CHAR:
     case TY_INT:
         break;
     case TY_PTR:
@@ -567,21 +603,7 @@ static const Type* gen_local_node(const Node* pNode, GlobalContext* pGlobalConte
         {
             const Type* pType = gen_left_expr(pNode, pGlobalContext, pContext);
             printf("  pop rax\n");
-            switch (pType->ty) {
-            case TY_INT:
-                printf("  mov eax, [rax]\n");
-                printf("  cdqe\n");
-                break;
-            case TY_PTR:
-                printf("  mov rax, [rax]\n");
-                break;
-            case TY_ARRAY:
-                //ポインタ型はその指し示す先にある値を取り出すことで評価となるが、配列型はその指し示す先にある値は[0]の要素そのもの
-                //raxに格納されている値は配列型を指し示すポインタであるため、何もしないことで配列型変数の評価となる
-                break;
-            default:
-                error("Internal Error. Invalid Type '%d'.", pType->ty);
-            }
+            eval_var(pType, "rax");
             printf("  push rax\n");
 
             Type* pResultType = calloc(1, sizeof(Type));
@@ -605,7 +627,7 @@ static const Type* gen_local_node(const Node* pNode, GlobalContext* pGlobalConte
                 error_at(pNode->pToken->user_input, pNode->pToken->str, "ポインタ型ではない値はデリファレンスできません");
             }
             printf("  pop rax\n");
-            printf("  mov rax, [rax]\n");
+            eval_var(pResultType->ptr_to, "rax");
             printf("  push rax\n");
             return pResultType->ptr_to;
         }
@@ -636,10 +658,15 @@ static const Type* gen_local_node(const Node* pNode, GlobalContext* pGlobalConte
             const Type* pRhsType = gen_local_node(pNode->rhs, pGlobalContext, pContext);
 
             switch (pLhsType->ty) {
+            case TY_CHAR:
+                printf("  pop rax\n");
+                printf("  movsx rdi, al\n");
+                printf("  pop rax\n");
+                printf("  mov [rax], dil\n");
+                break;
             case TY_INT:
                 printf("  pop rax\n");
-                printf("  cdqe\n");
-                printf("  mov rdi, rax\n");
+                printf("  movsx rdi, eax\n");
                 printf("  pop rax\n");
                 printf("  mov [rax], edi\n");
                 break;
@@ -775,6 +802,9 @@ static void gen_def_func(const Node* pNode, GlobalContext* pGlobalContext) {
         printf("  mov rax, rbp\n");
         printf("  sub rax, %d\n", pParamTop->offset);
         switch (pParamTop->pType->ty) {
+        case TY_CHAR:
+            printf("  mov [rax], %s\n", PARAM_REG_NAME[PARAM_REG_INDEX_8BIT][paramNum - i - 1]);
+            break;
         case TY_INT:
             printf("  mov [rax], %s\n", PARAM_REG_NAME[PARAM_REG_INDEX_32BIT][paramNum - i - 1]);
             break;

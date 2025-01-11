@@ -411,7 +411,9 @@ static Node* type(Token** ppToken) {
     Node* pCurNode;
     const Token* pTypeNameToken = *ppToken;
 
-    if (!consume_reserved_word(ppToken, TK_INT)) {
+    if (!consume_reserved_word(ppToken, TK_INT) &&
+        !consume_reserved_word(ppToken, TK_CHAR))
+    {
         return NULL;
     }
 

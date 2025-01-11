@@ -117,6 +117,9 @@ Token* tokenize(const char* user_input) {
             else if ((int)(pEnd - p) == 3 && strncmp(p, "for", 3) == 0) {
                 cur = new_token(TK_FOR, cur, p, (int)(pEnd - p), user_input);
             }
+            else if ((int)(pEnd - p) == 4 && strncmp(p, "char", 4) == 0) {
+                cur = new_token(TK_CHAR, cur, p, (int)(pEnd - p), user_input);
+            }
             else if ((int)(pEnd - p) == 3 && strncmp(p, "int", 3) == 0) {
                 cur = new_token(TK_INT, cur, p, (int)(pEnd - p), user_input);
             }
