@@ -330,6 +330,15 @@ namespace TestProject
             Assert.AreEqual(7, Compile("int main() { char x[3]; x[0] = 4; x[2] = 3; return x[0] + x[2]; }"));
             Assert.AreEqual(3, Compile("int main() { char x[3]; x[0] = -1; x[1] = 2; int y; y = 4; return x[0] + y; }"));
         }
+
+        [TestMethod]
+        public void TestMethod25()
+        {
+            Assert.AreEqual(48, Compile("int main() { return \\\"0\\\"[0]; }"));
+            Assert.AreEqual(48, Compile("int main() { char* x; x = \\\"0\\\"; return x[0]; }"));
+            Assert.AreEqual(50, Compile("int main() { char* x; x = \\\"012\\\"; return x[2]; }"));
+            Assert.AreEqual(0, Compile("int main() { char* x; x = \\\"012\\\"; return x[3]; }"));
+        }
     }
 
     [TestClass]

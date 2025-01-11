@@ -23,6 +23,7 @@ typedef enum {
     ND_INVOKE,      // 関数呼び出し
     ND_VAR,         // 変数
     ND_NUM,         // 整数
+    ND_STRING,      // 文字列
     ND_EXPR_STMT,   // 式文
     ND_RETURN,      // return文
     ND_IF,          // if文
@@ -32,6 +33,7 @@ typedef enum {
 
 typedef struct Token Token;
 typedef struct Node Node;
+typedef struct StringLiteral StringLiteral;
 
 // 抽象構文木のノードの型
 struct Node {
@@ -42,4 +44,4 @@ struct Node {
     const Token* pToken;    // 元トークン
 };
 
-Node* parse(struct Token* pToken);
+Node* parse(Token* pToken, const StringLiteral* pStrLiterals);

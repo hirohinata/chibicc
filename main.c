@@ -16,14 +16,16 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    StringLiteral* pStrLiterals = NULL;
+
     // トークナイズする
-    Token* pToken = tokenize(argv[1]);
+    Token* pToken = tokenize(argv[1], &pStrLiterals);
 
     // 構文木を作成する
-    Node* pNode = parse(pToken);
+    Node* pNode = parse(pToken, pStrLiterals);
 
     // 構文木からアセンブリを出力
-    gen(pNode);
+    gen(pNode, pStrLiterals);
 
     return 0;
 }

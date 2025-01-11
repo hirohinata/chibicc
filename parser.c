@@ -65,6 +65,13 @@ static Node* primary(Token** ppToken) {
         return node;
     }
 
+    // 次のトークンが文字列なら文字列ノードを生成
+    if ((*ppToken)->kind == TK_STRING) {
+        const Token* pStringToken = *ppToken;
+        *ppToken = (*ppToken)->next;
+        return new_node(pStringToken, ND_STRING, NULL, NULL);
+    }
+
     // そうでなければ数値のはず
     return new_node_num(expect_number(ppToken));
 }
@@ -454,6 +461,6 @@ static Node* program(Token** ppToken) {
     return pRoot;
 }
 
-Node* parse(Token* pToken) {
+Node* parse(Token* pToken, const StringLiteral* pStrLiterals) {
     return program(&pToken);
 }

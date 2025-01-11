@@ -28,6 +28,7 @@ struct Type {
 };
 static const Type VOID_TYPE = { TY_VOID };
 static const Type CHAR_TYPE = { TY_CHAR };
+static const Type CHAR_PTR_TYPE = { TY_PTR, &CHAR_TYPE };
 static const Type INT_TYPE = { TY_INT };
 
 // グローバル変数の型
@@ -598,6 +599,11 @@ static const Type* gen_local_node(const Node* pNode, GlobalContext* pGlobalConte
         // 数値リテラル
         printf("  push %d\n", pNode->pToken->val);
         return &INT_TYPE;
+    case ND_STRING:
+        // 文字列リテラル
+        printf("  lea rax, .LC%04d[rip]\n", pNode->pToken->val);
+        printf("  push rax\n");
+        return &CHAR_PTR_TYPE;
     case ND_VAR:
         // 変数
         {
@@ -890,11 +896,24 @@ static void resigter_gvars(GlobalContext* pGlobalContext, const Node* pNode) {
     }
 }
 
-void gen(const Node* pNode) {
+void resigter_str_literals(const StringLiteral* pStrLiterals) {
+    int i = 0;
+    while (pStrLiterals) {
+        printf(".LC%04d:\n", i++);
+        printf("  .string %s\n", pStrLiterals->pszText);
+        pStrLiterals = pStrLiterals->pNext;
+    }
+}
+
+void gen(const Node* pNode, const StringLiteral* pStrLiterals) {
     GlobalContext globalContext = { 0 };
 
     // アセンブリの前半部分を出力
     printf(".intel_syntax noprefix\n");
+
+    // 文字列リテラルの登録
+    printf(".data\n");
+    resigter_str_literals(pStrLiterals);
 
     // グローバル変数の登録
     printf(".bss\n");

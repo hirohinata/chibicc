@@ -41,7 +41,6 @@ const Token* consume_ident(Token** ppToken) {
     const Token* pIdentToken = *ppToken;
     *ppToken = (*ppToken)->next;
     return pIdentToken;
-
 }
 
 // 次のトークンが期待している記号のときには、トークンを1つ読み進める。
@@ -84,10 +83,12 @@ static Token* new_token(TokenKind kind, Token* cur, const char* str, int len, co
 }
 
 // 入力文字列pをトークナイズしてそれを返す
-Token* tokenize(const char* user_input) {
+Token* tokenize(const char* user_input, StringLiteral** ppStrLiterals) {
     Token head;
     head.next = NULL;
     Token* cur = &head;
+    StringLiteral* pCurStrLiterals = NULL;
+    int strLiteralCount = 0;
 
     const char* p = user_input;
     while (*p) {
@@ -162,6 +163,37 @@ Token* tokenize(const char* user_input) {
             cur->val = val;
             p = pEnd;
             continue;
+        }
+
+        // 文字列リテラル
+        if (*p == '"') {
+            const char* pEnd = p;
+            while (*(++pEnd) != '"') {
+                if (*pEnd == '\0' || *pEnd == '\n') {
+                    error_at(user_input, p, "文字列リテラルが閉じられていません");
+                }
+            }
+            ++pEnd;
+
+            if (pCurStrLiterals == NULL) {
+                *ppStrLiterals = calloc(1, sizeof(StringLiteral));
+                pCurStrLiterals = *ppStrLiterals;
+            }
+            else {
+                pCurStrLiterals->pNext = calloc(1, sizeof(StringLiteral));
+                pCurStrLiterals = pCurStrLiterals->pNext;
+            }
+
+            int len = (int)(pEnd - p);
+
+            pCurStrLiterals->pszText = calloc(len + 1, sizeof(char));
+            strncpy_s(pCurStrLiterals->pszText, len + 1, p, len);
+
+            cur = new_token(TK_STRING, cur, p, (int)(pEnd - p), user_input);
+            cur->val = strLiteralCount++;
+            p = pEnd;
+            continue;
+
         }
 
         error_at(user_input, p, "トークナイズできません");

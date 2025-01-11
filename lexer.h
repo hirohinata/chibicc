@@ -13,10 +13,12 @@ typedef enum {
     TK_SIZEOF,   // sizeof
     TK_IDENT,    // 識別子
     TK_NUM,      // 整数トークン
+    TK_STRING,   // 文字列リテラル
     TK_EOF,      // 入力の終わりを表すトークン
 } TokenKind;
 
 typedef struct Token Token;
+typedef struct StringLiteral StringLiteral;
 
 // トークン型
 struct Token {
@@ -26,6 +28,12 @@ struct Token {
     const char* str;            // トークン文字列
     int len;                    // トークンの長さ
     const char* user_input;     // 分解元ユーザー入力文字列
+};
+
+// 文字列リテラル
+struct StringLiteral {
+    StringLiteral* pNext;
+    char* pszText;
 };
 
 // 次のトークンが期待している記号のときには、トークンを1つ読み進めて
@@ -52,4 +60,4 @@ int expect_number(Token** ppToken);
 bool at_eof(Token* pToken);
 
 // 入力文字列pをトークナイズしてそれを返す
-Token* tokenize(const char* user_input);
+Token* tokenize(const char* user_input, StringLiteral** ppStrLiterals);
