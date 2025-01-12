@@ -353,6 +353,23 @@ namespace TestProject
             Assert.AreEqual(50, Compile("""int main() { char* x; x = "012"; return x[2]; }"""));
             Assert.AreEqual(0, Compile("""int main() { char* x; x = "012"; return x[3]; }"""));
         }
+
+        [TestMethod]
+        public void TestMethod26()
+        {
+            Assert.AreEqual(42, Compile("""
+int main()
+{
+    int x;
+    // 行コメント
+    x = 42;
+    /*
+     * ブロックコメント
+     */
+    return x;
+}
+"""));
+        }
     }
 
     [TestClass]

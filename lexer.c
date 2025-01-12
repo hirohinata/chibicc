@@ -128,6 +128,25 @@ Token* tokenize(const char* filename, StringLiteral** ppStrLiterals) {
             continue;
         }
 
+        // 行コメントをスキップ
+        if (strncmp(p, "//", 2) == 0) {
+            p += 2;
+            while (*p != '\n') {
+                p++;
+            }
+            continue;
+        }
+
+        // ブロックコメントをスキップ
+        if (strncmp(p, "/*", 2) == 0) {
+            char* q = strstr(p + 2, "*/");
+            if (!q) {
+                error_at(filename, user_input, p, "コメントが閉じられていません");
+            }
+            p = q + 2;
+            continue;
+        }
+
         // 識別子
         if ('a' <= *p && *p <= 'z' || 'A' <= *p && *p <= 'Z') {
             const char* pEnd = p;
